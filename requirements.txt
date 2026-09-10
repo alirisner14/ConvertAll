@@ -1,0 +1,21 @@
+# ConvertAll runtime dependencies.
+#   pip install -r requirements.txt
+
+# --- GUI ---------------------------------------------------------------------
+customtkinter>=5.2.2          # modern themed Tk widgets
+tkinterdnd2>=0.4.2            # optional: drag and drop onto the file lists
+
+# --- Images ------------------------------------------------------------------
+Pillow>=11.0.0                # PNG / JPG / WebP / ICO encoding and decoding
+pillow-heif>=0.18.0           # adds HEIC / HEIF support to Pillow
+
+# --- Audio and video ---------------------------------------------------------
+# FFmpeg does the audio->video wrapping and all A/V re-encoding. If a system
+# FFmpeg is on PATH it is used; otherwise this wheel supplies a bundled binary,
+# so there is nothing to install by hand on Windows.
+imageio-ffmpeg>=0.5.1
+
+# --- Vector ------------------------------------------------------------------
+potracer>=0.0.4               # pure-Python Potrace port - powers both tracing engines
+numpy>=1.26.0                 # bitmap handling for the Potrace engine
+lxml>=5.2.0                   # SVG parsing, splitting and minification

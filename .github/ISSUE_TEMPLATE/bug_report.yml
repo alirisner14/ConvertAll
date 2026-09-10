@@ -1,0 +1,66 @@
+name: Bug report
+description: Something converts wrong, crashes, or does not behave as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. The single most useful thing you can include is a
+        description of the **input file** that triggers it.
+
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Which tool?
+      options:
+        - Image conversion
+        - Audio to video
+        - Raster to vector
+        - Split SVG layers
+        - Smart compression
+        - The app itself (startup, theme, keyboard)
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: input-file
+    attributes:
+      label: The input file
+      description: >
+        Format, rough dimensions or duration, and where it came from.
+        For example "HEIC straight off an iPhone 15, 4032x3024" or
+        "SVG exported from Figma, 12 layers". Attach it if you can.
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Activity log
+      description: Copy the lines from the log panel at the bottom of the window.
+      render: text
+
+  - type: input
+    id: version
+    attributes:
+      label: ConvertAll version
+      description: Shown at the bottom of the sidebar, or run `python -m convertall --version`.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: OS and Python version
+      placeholder: "Windows 11, Python 3.12.4"
+    validations:
+      required: true

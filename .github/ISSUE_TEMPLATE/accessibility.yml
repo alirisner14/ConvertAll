@@ -1,0 +1,43 @@
+name: Accessibility issue
+description: Something is hard to see, hard to reach by keyboard, or unreadable.
+labels: ["accessibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Accessibility reports are treated as bugs, not enhancements. Thank you
+        for taking the time to file one.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem?
+      options:
+        - Contrast or colour
+        - Keyboard navigation
+        - Focus is unclear or invisible
+        - Text is too small, or clipped when scaled up
+        - Screen reader
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: What is the problem?
+      description: Which screen or control, and what happens.
+    validations:
+      required: true
+
+  - type: input
+    id: settings
+    attributes:
+      label: Palette and text scale in use
+      placeholder: "High-contrast dark, 130%"
+
+  - type: input
+    id: assistive-tech
+    attributes:
+      label: Assistive technology, if any
+      placeholder: "NVDA 2024.1 / Windows Magnifier / none"

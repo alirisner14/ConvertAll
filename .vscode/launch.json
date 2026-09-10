@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "ConvertAll: run the app",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "convertall",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
+      "name": "ConvertAll: maximum contrast, large text",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "convertall",
+      "args": ["--contrast", "maximum", "--text-scale", "1.3"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "ConvertAll: run the tests",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["tests", "-v"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    }
+  ]
+}
