@@ -130,7 +130,9 @@ rules the pipeline follows:
 | SVG | Editor metadata stripped, coordinates rounded to 2dp | Geometry is never altered. |
 
 And a safety net: if an "optimised" file comes out *larger* than the original,
-ConvertAll keeps the original and says so in the log.
+ConvertAll keeps the original and says so in the log. This matters most for
+video — anything already efficiently encoded, or in a newer codec than H.264,
+can grow when re-encoded, so it is left alone.
 
 ## Project layout
 

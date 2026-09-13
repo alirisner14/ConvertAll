@@ -210,6 +210,28 @@ def test_smart_compress_leaves_lossy_audio_alone(tmp_path):
     assert result.ok and "already lossy" in result.message
 
 
+def test_keep_original_uses_the_source_extension(tmp_path):
+    """A kept original must not inherit the re-encode's extension."""
+    from convertall.core.common import TaskResult
+    from convertall.core.compress import _keep_original
+
+    src = tmp_path / "clip.mkv"
+    src.write_bytes(b"original bytes")
+    out = tmp_path / "out"
+    out.mkdir()
+    stale = out / "clip.mp4"
+    stale.write_bytes(b"bigger re-encode")
+
+    result = _keep_original(
+        TaskResult(source=src, output=stale, bytes_in=14, bytes_out=16), src, out, "kept"
+    )
+
+    assert not stale.exists(), "the discarded re-encode should be deleted"
+    assert result.output.name == "clip.mkv"
+    assert result.output.read_bytes() == b"original bytes"
+    assert result.bytes_out == 14
+
+
 def test_smart_compress_reports_unsupported_types(tmp_path):
     odd = tmp_path / "notes.txt"
     odd.write_text("hello")
@@ -319,6 +341,76 @@ def test_wav_to_mp4_produces_a_playable_container(tmp_path):
     result = audio_to_video(wav, tmp_path / "out", resolution=(320, 240), preset="small")
     assert result.ok and result.output.suffix == ".mp4"
     assert result.output.stat().st_size > 0
+
+
+@pytest.mark.skipif(not _ffmpeg_available(), reason="FFmpeg is not available")
+def test_compressing_an_efficient_video_keeps_the_original(tmp_path):
+    """Re-encoding already-tight video makes it bigger. Don't ship that."""
+    from convertall.core.common import ffmpeg_exe
+
+    src = tmp_path / "tight.mp4"
+    subprocess.run(
+        [
+            ffmpeg_exe(),
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "nullsrc=s=320x240:r=10:d=2",
+            "-vf",
+            "geq=random(1)*255:128:128",
+            "-c:v",
+            "libx264",
+            "-crf",
+            "40",
+            "-pix_fmt",
+            "yuv420p",
+            str(src),
+        ],
+        capture_output=True,
+        check=True,
+    )
+
+    # preset="lossless" is CRF 18 - far denser than the CRF 40 source above.
+    result = smart_compress(src, tmp_path / "out", preset="lossless")
+
+    assert result.ok
+    assert "original kept" in result.message, result.message
+    assert result.bytes_out == result.bytes_in
+    assert result.output.read_bytes() == src.read_bytes()
+
+
+@pytest.mark.skipif(not _ffmpeg_available(), reason="FFmpeg is not available")
+def test_compressing_a_wasteful_video_actually_shrinks_it(tmp_path):
+    """The guard must not fire on video that genuinely compresses."""
+    from convertall.core.common import ffmpeg_exe
+
+    src = tmp_path / "wasteful.mp4"
+    subprocess.run(
+        [
+            ffmpeg_exe(),
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=s=640x480:r=15:d=3",
+            "-c:v",
+            "libx264",
+            "-qp",
+            "0",
+            "-pix_fmt",
+            "yuv420p",
+            str(src),
+        ],
+        capture_output=True,
+        check=True,
+    )
+
+    result = smart_compress(src, tmp_path / "out", preset="balanced")
+
+    assert result.ok
+    assert "original kept" not in result.message
+    assert result.bytes_out < result.bytes_in
 
 
 @pytest.mark.skipif(not _ffmpeg_available(), reason="FFmpeg is not available")

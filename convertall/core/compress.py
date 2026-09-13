@@ -8,7 +8,9 @@ The rule the whole module follows: never trade away quality you would notice.
 * WAV / AIFF     - FLAC. Bit-for-bit identical audio, usually about half the size.
 * Already-lossy audio (MP3/AAC/OGG) - left alone. Re-encoding lossy audio only
   destroys it.
-* Video          - x264 CRF + AAC, faststart for instant playback.
+* Video          - x264 CRF + AAC, faststart for instant playback. Kept only
+  if the re-encode is actually smaller; already-efficient or newer-codec video
+  can grow under H.264, and that is never handed back as a success.
 * SVG            - editor cruft stripped and coordinates rounded, geometry untouched.
 """
 
@@ -89,6 +91,32 @@ def minify_svg(src: Path, out_dir: Path, log=None) -> TaskResult:
     )
 
 
+def _grew(result: TaskResult) -> bool:
+    """True when a re-encode did not actually pay for itself."""
+    return bool(result.ok and result.output and result.bytes_out >= result.bytes_in > 0)
+
+
+def _keep_original(result: TaskResult, src: Path, out_dir: Path, why: str, log=None) -> TaskResult:
+    """Throw away a re-encode that got bigger and keep the source bytes.
+
+    The copy is written under the *source* name, not the re-encode's. The two
+    can differ - a GIF is re-encoded to PNG, an MKV to MP4 - and copying the
+    original bytes into the new extension would produce a mislabelled file.
+    """
+    if result.output and result.output.exists():
+        result.output.unlink()
+
+    dst = unique_path(Path(out_dir) / src.name)
+    shutil.copy2(src, dst)
+
+    result.output = dst
+    result.message = why
+    result.bytes_out = size_of(dst)
+    if log:
+        log(f"  {src.name} -> {dst.name} ({why})")
+    return result
+
+
 def smart_compress(
     src: Path,
     out_dir: Path,
@@ -106,10 +134,10 @@ def smart_compress(
         if target in ("gif", "bmp", "tif", "tiff", "heic", "heif", "avif"):
             target = "png"  # formats Pillow cannot re-encode well; PNG is safe
         result = convert_image(src, out_dir, target=target, preset=preset, log=log)
-        if not images_to_webp and result.output and result.bytes_out >= result.bytes_in > 0:
-            shutil.copy2(src, result.output)
-            result.message = "already optimal - original kept"
-            result.bytes_out = size_of(result.output)
+        # Asking for WebP is a deliberate format change, so honour it even if it
+        # does not shrink. Everything else is meant to be an optimisation.
+        if not images_to_webp and _grew(result):
+            return _keep_original(result, src, out_dir, "already optimal - original kept", log)
         return result
 
     if kind == "audio":
@@ -127,7 +155,15 @@ def smart_compress(
         return compress_audio_lossless(src, out_dir, log=log)
 
     if kind == "video":
-        return compress_video(src, out_dir, preset=preset, log=log)
+        result = compress_video(src, out_dir, preset=preset, log=log)
+        # Video is the likeliest place for a re-encode to backfire: anything
+        # already efficiently encoded, or in a newer codec than H.264, can come
+        # out larger *and* slightly worse. Never hand that back as a success.
+        if _grew(result):
+            return _keep_original(
+                result, src, out_dir, "already efficiently encoded - original kept", log
+            )
+        return result
 
     if kind == "vector":
         return minify_svg(src, out_dir, log=log)

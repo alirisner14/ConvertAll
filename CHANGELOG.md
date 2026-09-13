@@ -8,7 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Nothing yet.
+- `tools/build_exe.py` for building the Windows executable locally, with
+  `--clean`, a `--smoke` flag that launches the result, and a bundle check that
+  reads the frozen archive's table of contents rather than the filesystem.
+
+### Fixed
+- **Smart compression no longer returns video that got bigger.** The
+  "keep the original if the re-encode is larger" guard was documented as
+  general but only implemented for images, so an already-efficient MP4 — or
+  anything in a newer codec than H.264 — could come back larger *and* slightly
+  degraded, reported as a success. The guard now covers video too.
+- A kept original is written under its own extension. Previously the source
+  bytes were copied into the re-encode's filename, so a GIF that failed to beat
+  PNG was saved as `.png`, and an MKV as `.mp4`.
 
 ## [0.1.0] - 2026-09-12
 
