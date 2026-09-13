@@ -132,6 +132,48 @@ def _trace_mono(src: Path, dst: Path, detail: str, threshold: int, invert: bool)
     return f"Potrace, threshold {threshold}, speckle {turdsize}"
 
 
+def rgba_to_paths(rgba, colors: int = 8, turdsize: int = 4) -> list[str]:
+    """Trace an RGBA array into `<path>` elements, one per posterised colour.
+
+    Shared by the tracing tool and by part splitting, which wraps the result in
+    a named group per part.
+    """
+    from PIL import Image
+
+    img = Image.fromarray(rgba) if not isinstance(rgba, Image.Image) else rgba
+    return _colour_layers(img.convert("RGBA"), colors, turdsize)
+
+
+def _colour_layers(img, colors: int, turdsize: int) -> list[str]:
+    np, _ = _require()
+    from PIL import Image
+
+    opaque = np.array(img.getchannel("A")) >= 128
+    quantized = img.convert("RGB").quantize(
+        colors=colors, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE
+    )
+    indices = np.array(quantized)
+    palette = quantized.getpalette() or []
+
+    counts = [(int((indices == i).sum()), i) for i in np.unique(indices)]
+    counts.sort(reverse=True)
+    minimum = max(1, int(indices.size * _MIN_LAYER_SHARE))
+
+    layers: list[str] = []
+    for count, index in counts:
+        if count < minimum:
+            continue
+        mask = (indices == index) & opaque
+        if not mask.any():
+            continue
+        d = _trace_mask(mask, turdsize)
+        if not d:
+            continue
+        r, g, b = palette[index * 3 : index * 3 + 3]
+        layers.append(f'<path d="{d}" fill="#{r:02x}{g:02x}{b:02x}" fill-rule="evenodd"/>')
+    return layers
+
+
 def _trace_color(src: Path, dst: Path, detail: str) -> str:
     np, _ = _require()
     from PIL import Image

@@ -32,6 +32,7 @@ dependencies = [
     "imageio-ffmpeg>=0.5.1",
     "potracer>=0.0.4",
     "numpy>=1.26.0",
+    "opencv-python>=4.10.0",
     "lxml>=5.2.0",
 ]
 

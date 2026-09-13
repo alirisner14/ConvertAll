@@ -15,6 +15,11 @@ pillow-heif>=0.18.0           # adds HEIC / HEIF support to Pillow
 # so there is nothing to install by hand on Windows.
 imageio-ffmpeg>=0.5.1
 
+# --- Sprite splitting ---------------------------------------------------------
+# Watershed partitioning, morphology, and the distance transform that
+# replicates cut-edge pixels. ~40 MB wheel, no native build.
+opencv-python>=4.10.0
+
 # --- Vector ------------------------------------------------------------------
 potracer>=0.0.4               # pure-Python Potrace port - powers both tracing engines
 numpy>=1.26.0                 # bitmap handling for the Potrace engine
