@@ -70,3 +70,7 @@ ignore = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# Put the project root on sys.path so `pytest` works straight from a clone,
+# with no editable install. Without this only `python -m pytest` works, because
+# that form alone adds the working directory to sys.path.
+pythonpath = ["."]
