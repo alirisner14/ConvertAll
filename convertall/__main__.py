@@ -25,7 +25,9 @@ def _missing() -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="convertall",
-        description="Accessible batch conversion for images, audio and vectors.",
+        description=(
+            "Accessible batch conversion for images (includes vector art), audio, and video."
+        ),
     )
     parser.add_argument("--version", action="version", version=f"ConvertAll {__version__}")
     parser.add_argument(

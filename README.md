@@ -2,7 +2,7 @@
 
 # ConvertAll
 
-**An accessible, high-contrast batch converter for images, audio and vector art.**
+**An accessible, high-contrast batch converter for images (includes vector art), audio, and video.**
 
 [![CI](https://github.com/alirisner14/ConvertAll/actions/workflows/ci.yml/badge.svg)](https://github.com/alirisner14/ConvertAll/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
