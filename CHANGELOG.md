@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.2.0] - 2026-09-13
+
 ### Added
-- **A video codec choice in Smart compression: H.264, H.265/HEVC or AV1.**
+- **A video codec choice in the Compression tool: H.264, H.265/HEVC or AV1.**
   Measured on screen-recording content, H.265 saves about 17% over an H.264
   source and AV1 about 34%, at roughly two and four times the encode time
   respectively. Unavailable encoders are reported clearly instead of failing
@@ -53,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   container so it can be uploaded where only video is accepted.
 
 ### Fixed
-- **Smart compression no longer returns video that got bigger.** The
+- **Compression no longer returns video that got bigger.** The
   "keep the original if the re-encode is larger" guard was documented as
   general but only implemented for images, so an already-efficient MP4 — or
   anything in a newer codec than H.264 — could come back larger *and* slightly
@@ -93,5 +97,6 @@ The first release.
   needed on Windows.
 - pytest suite covering every pipeline, runnable without a display.
 
-[Unreleased]: https://github.com/alirisner14/ConvertAll/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/alirisner14/ConvertAll/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/alirisner14/ConvertAll/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/alirisner14/ConvertAll/releases/tag/v0.1.0
