@@ -2,7 +2,7 @@
 
 # ConvertAll
 
-**An accessible, high-contrast batch converter for images (includes vector art), audio, and video.**
+**Batch-convert images (includes vector art), audio, and video — tracing, SVG splitting, and compression with no visible or audible loss.**
 
 [![CI](https://github.com/alirisner14/ConvertAll/actions/workflows/ci.yml/badge.svg)](https://github.com/alirisner14/ConvertAll/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
@@ -15,10 +15,13 @@
 
 ---
 
-ConvertAll is a desktop utility that does the five media chores that normally need
-five different tools — and does them without asking you to squint. The interface
-is built around a WCAG-AAA contrast palette, keyboard access for every control,
-and text you can scale on the fly.
+ConvertAll is a desktop utility that does four media chores which normally need
+four different tools, in one window: convert a file to a specific format,
+squeeze a file down without visible or audible loss, trace artwork into vectors,
+and split a layered SVG into its parts.
+
+It runs entirely on your machine. Nothing is uploaded, nothing phones home, and
+no original file is ever overwritten.
 
 ## Features
 
@@ -31,39 +34,9 @@ Two tools do most of the work — **Conversion** when you need a particular file
 | **Tracing (Raster to Vector)** | Auto-traces artwork into scalable `.svg`. Two Potrace-based engines: posterised colour layers for artwork, pure black & white for line art. |
 | **Split SVG Layers** | Splits any layered `.svg` into one standalone file per layer, group or shape. Universal — no assumptions about which editor made the file. |
 
-## Accessibility
+Tracing, with the engine and detail controls:
 
-This is the part that is easy to skip and shouldn't be.
-
-- **Two palettes, both measured.** The default **Charcoal** theme clears WCAG
-  2.1 **AAA** (7:1) for every piece of text on every surface — a charcoal
-  ground (`#2C2D30`), off-white text rather than glaring pure white, and a mint
-  accent at 10.3:1. *Maximum contrast* is white on black at 21:1, where the
-  selected item inverts to a white block rather than relying on a hue at all.
-  Toggle with `Ctrl + D`.
-- **No yellow anywhere.** High-contrast interfaces reach for saturated yellow
-  because it scores well, but it is genuinely unpleasant to look at for a long
-  session — including for some of the low-vision users it is meant to serve.
-  Both palettes hit their targets without it.
-- **The ratios are enforced, not claimed.** `tests/test_theme.py` computes every
-  pairing against WCAG and fails the build if a colour edit drops text below
-  threshold, so the palette cannot quietly rot.
-- **Live text scaling.** `Ctrl + +` / `Ctrl + -` scale every label, button and
-  list in the app from 85% to 160%. The layout reflows; nothing is clipped.
-- **Hover and focus never share a signal.** The accent is a cool mint, the
-  focus ring a warm orange — about 125° apart in hue, which a contrast ratio
-  cannot express and a test checks directly. Focus always outranks hover, so
-  moving the mouse never hides where the keyboard is.
-- **Everything is keyboard reachable.** Tab moves, Enter/Space activates, and
-  every action has a shortcut (press `F1` for the full list).
-- **Help text is visible, not hovered.** Options carry printed descriptions
-  rather than tooltips, which keyboard and screen-reader users cannot reach.
-- **Native list and log widgets**, so assistive technology sees real text.
-
-The *Maximum contrast* palette at 130% text, showing how the layout reflows
-rather than clipping:
-
-![The maximum-contrast palette at 130% text scale](assets/screenshot-maximum-contrast.png)
+![The Tracing panel](assets/screenshot-trace.png)
 
 ## Requirements
 
@@ -203,6 +176,33 @@ from convertall.core import convert_image, split_svg
 convert_image(Path("logo.png"), Path("out"), target="ico")
 split_svg(Path("artwork.svg"), Path("out"), mode="auto")
 ```
+
+## Design notes
+
+Ordinary desktop software, built carefully. Nothing here is a mode you have to
+turn on.
+
+- **Two palettes.** The default is a charcoal ground with off-white text and a
+  mint accent. *Maximum contrast* is white on black, where the selected item
+  inverts rather than relying on a hue at all. `Ctrl + D` switches.
+  ![Maximum contrast, at 130% text scale](assets/screenshot-maximum-contrast.png)
+
+- **The colours are measured, not guessed.** Every pairing clears WCAG 2.1 AAA
+  (7:1), and `tests/test_theme.py` recomputes them on every build, so a colour
+  tweak that hurts legibility fails CI instead of shipping.
+- **No saturated yellow.** It scores well on a contrast chart and is tiring to
+  look at for an hour. Both palettes hit their numbers without it.
+- **Text scales 85–160%** with `Ctrl + +` / `Ctrl + -`. The layout reflows
+  rather than clipping. It starts at normal desktop size.
+- **Hover and focus never look alike.** The accent is mint, the focus ring
+  orange — about 125° apart in hue, which a contrast ratio cannot express and a
+  test checks directly. Focus outranks hover, so the mouse never hides where
+  the keyboard is.
+- **Everything works from the keyboard.** Tab moves, Enter or Space activates,
+  every action has a shortcut (`F1` lists them).
+- **Help text is visible, not hovered.** Options carry printed descriptions;
+  tooltips are unreachable by keyboard and screen readers.
+- **Native list and log widgets**, so assistive technology sees real text.
 
 ## Development
 

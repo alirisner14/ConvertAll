@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "convertall"
 dynamic = ["version"]
-description = "An accessible, high-contrast batch converter for images (includes vector art), audio, and video."
+description = "Batch-convert images (includes vector art), audio, and video, with tracing, SVG splitting and visually lossless compression."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
