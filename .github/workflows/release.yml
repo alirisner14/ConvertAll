@@ -13,14 +13,14 @@ jobs:
     name: Build sdist and wheel
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
       - run: pip install build
       - run: python -m build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: python-distribution
           path: dist/*
@@ -29,8 +29,8 @@ jobs:
     name: Build Windows executable
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -42,7 +42,7 @@ jobs:
         run: pyinstaller --noconfirm ConvertAll.spec
       - name: Package
         run: Compress-Archive -Path dist/ConvertAll/* -DestinationPath ConvertAll-windows.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-executable
           path: ConvertAll-windows.zip
@@ -53,11 +53,11 @@ jobs:
     needs: [distribution, windows-executable]
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
       - name: Attach the build outputs to the release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             artifacts/python-distribution/*
