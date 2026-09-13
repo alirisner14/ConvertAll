@@ -1,4 +1,4 @@
-"""Audio -> video wrapping, plus audio/video re-encoding, all via FFmpeg."""
+"""Audio -> MP4 conversion, plus audio/video re-encoding, all via FFmpeg."""
 
 from __future__ import annotations
 
@@ -83,7 +83,7 @@ RESOLUTIONS = {
 }
 
 
-def audio_to_video(
+def audio_to_mp4(
     src: Path,
     out_dir: Path,
     background: Path | None = None,
@@ -92,7 +92,7 @@ def audio_to_video(
     background_color: str = "black",
     log=None,
 ) -> TaskResult:
-    """Wrap a .wav (or any audio file) into a playable .mp4 container.
+    """Convert a .wav (or any audio file) into a playable .mp4.
 
     With a background image the still is encoded with `-tune stillimage`, which
     costs almost nothing per frame. Without one we synthesise a flat colour

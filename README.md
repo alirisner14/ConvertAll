@@ -25,7 +25,7 @@ and text you can scale on the fly.
 | Tool | What it does |
 | --- | --- |
 | **Image conversion** | Batch `.png → .webp`, `.heic → .png/.jpg`, and `.png/.jpg → .ico` (multi-resolution). Alpha, ICC colour profiles and EXIF rotation survive the trip. |
-| **Audio to video** | Wraps `.wav` (or MP3/FLAC/M4A…) into a `.mp4` container with either a still background image or a synthesised flat-colour track. |
+| **Audio to MP4** | Converts `.wav` (or MP3/FLAC/M4A…) into a `.mp4`, with either a still background image or a synthesised flat-colour track, for anywhere that only accepts video. |
 | **Raster to vector** | Auto-traces artwork into scalable `.svg`. Two Potrace-based engines: posterised colour layers for artwork, pure black & white for line art. |
 | **SVG splitting** | Splits any layered `.svg` into one standalone file per layer, group or shape. Universal — no assumptions about which editor made the file. |
 | **Smart compression** | Type-aware optimisation across every supported format, tuned to stay visually and audibly lossless. |
@@ -170,7 +170,7 @@ ConvertAll/
 │   ├── jobs.py           # background worker thread + event queue
 │   └── core/             # all processing — GUI-free and unit-tested
 │       ├── images.py     # PNG/HEIC/JPG/WebP/ICO
-│       ├── media.py      # audio → video, A/V re-encoding (FFmpeg)
+│       ├── media.py      # audio → MP4, A/V re-encoding (FFmpeg)
 │       ├── vectorize.py  # Potrace auto-tracing (colour + mono)
 │       ├── svgsplit.py   # layer/group/shape splitting
 │       └── compress.py   # type-aware smart compression

@@ -314,7 +314,7 @@ def test_color_engine_ignores_transparent_regions(logo, tmp_path):
     assert 1 <= len(paths) <= 2
 
 
-# --- audio to video (needs FFmpeg) ------------------------------------------ #
+# --- audio to MP4 (needs FFmpeg) -------------------------------------------- #
 
 
 def _ffmpeg_available() -> bool:
@@ -330,7 +330,7 @@ def _ffmpeg_available() -> bool:
 @pytest.mark.skipif(not _ffmpeg_available(), reason="FFmpeg is not available")
 def test_wav_to_mp4_produces_a_playable_container(tmp_path):
     from convertall.core.common import ffmpeg_exe
-    from convertall.core.media import audio_to_video
+    from convertall.core.media import audio_to_mp4
 
     wav = tmp_path / "tone.wav"
     subprocess.run(
@@ -338,7 +338,7 @@ def test_wav_to_mp4_produces_a_playable_container(tmp_path):
         capture_output=True,
         check=True,
     )
-    result = audio_to_video(wav, tmp_path / "out", resolution=(320, 240), preset="small")
+    result = audio_to_mp4(wav, tmp_path / "out", resolution=(320, 240), preset="small")
     assert result.ok and result.output.suffix == ".mp4"
     assert result.output.stat().st_size > 0
 

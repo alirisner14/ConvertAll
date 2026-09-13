@@ -14,7 +14,7 @@ from .common import (
 )
 from .compress import minify_svg, smart_compress
 from .images import convert_image
-from .media import audio_to_video, compress_audio_lossless, compress_video
+from .media import audio_to_mp4, compress_audio_lossless, compress_video
 from .svgsplit import split_svg
 from .vectorize import trace_image
 
@@ -24,7 +24,7 @@ __all__ = [
     "VECTOR_EXTS",
     "VIDEO_EXTS",
     "TaskResult",
-    "audio_to_video",
+    "audio_to_mp4",
     "collect_files",
     "compress_audio_lossless",
     "compress_video",

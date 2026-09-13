@@ -34,7 +34,7 @@ from .core.common import (
 )
 from .core.compress import smart_compress
 from .core.images import convert_image
-from .core.media import audio_to_video
+from .core.media import audio_to_mp4
 from .core.svgsplit import split_svg
 from .core.vectorize import trace_image
 from .jobs import JobRunner, JobSummary
@@ -428,17 +428,17 @@ class ImagesPanel(ToolPanel):
         }
 
 
-class AudioVideoPanel(ToolPanel):
-    key = "audiovideo"
-    title = "Audio to video"
+class AudioToMp4Panel(ToolPanel):
+    key = "audio-mp4"
+    title = "Audio to MP4"
     description = (
-        "Wrap audio into an .mp4 container so it can be uploaded anywhere that "
-        "expects video. Add a still image for the background, or leave it empty "
-        "for a flat colour track that costs almost nothing in file size."
+        "Convert an audio file into an .mp4, so it can be uploaded anywhere that "
+        "only accepts video. Add a still image for the background, or leave it "
+        "empty for a flat colour track that costs almost nothing in file size."
     )
     accepted = AUDIO_EXTS
     file_label = "Audio files"
-    action_text = "Create videos"
+    action_text = "Convert to MP4"
     dialog_name = "Audio"
 
     def build_options(self, parent) -> None:
@@ -519,7 +519,7 @@ class AudioVideoPanel(ToolPanel):
     def make_job(self):
         preset_key = next(k for k, v in images_core.PRESET_LABELS.items() if v == self.preset.get())
         colours = {"Black": "black", "White": "white", "Dark grey": "0x1E2936"}
-        return audio_to_video, {
+        return audio_to_mp4, {
             "background": self.background,
             "resolution": media_core.RESOLUTIONS[self.resolution.get()],
             "preset": preset_key,
@@ -731,7 +731,7 @@ class CompressPanel(ToolPanel):
         }
 
 
-PANELS = [ImagesPanel, AudioVideoPanel, TracePanel, SplitPanel, CompressPanel]
+PANELS = [ImagesPanel, AudioToMp4Panel, TracePanel, SplitPanel, CompressPanel]
 
 
 # --------------------------------------------------------------------------- #

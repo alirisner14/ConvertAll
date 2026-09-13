@@ -23,7 +23,7 @@ body:
       label: Which area?
       options:
         - Image conversion
-        - Audio to video
+        - Audio to MP4
         - Raster to vector
         - Split SVG layers
         - Smart compression

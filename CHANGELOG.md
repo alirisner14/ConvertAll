@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--clean`, a `--smoke` flag that launches the result, and a bundle check that
   reads the frozen archive's table of contents rather than the filesystem.
 
+### Changed
+- The **Audio to video** tool is now called **Audio to MP4**. The old name
+  described something impossible — the tool wraps an audio file in an MP4
+  container so it can be uploaded where only video is accepted.
+
 ### Fixed
 - **Smart compression no longer returns video that got bigger.** The
   "keep the original if the re-encode is larger" guard was documented as
