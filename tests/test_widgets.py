@@ -12,6 +12,7 @@ anything.
 from __future__ import annotations
 
 import contextlib
+import time
 
 import customtkinter as ctk
 import pytest
@@ -42,15 +43,29 @@ def test_accessible_button_does_not_shadow_ctk_internals():
 
 @pytest.fixture
 def root():
-    """A real Tk root, or skip. Headless CI has no display."""
-    try:
-        window = ctk.CTk()
-    except Exception as exc:  # pragma: no cover - depends on environment
-        pytest.skip(f"no display available: {exc}")
+    """A real Tk root, or skip. Headless CI has no display.
+
+    Per-test rather than shared: these tests fire focus and hover events, and
+    leftover widgets from an earlier test steal them. Creating roots in quick
+    succession occasionally fails on Windows, so retry once before skipping -
+    a test that silently skips is protecting nothing.
+    """
+    window = _new_root()
     window.geometry("400x200+50+50")
     yield window
     with contextlib.suppress(Exception):
         window.destroy()
+
+
+def _new_root(attempts: int = 3):
+    last = None
+    for _ in range(attempts):
+        try:
+            return ctk.CTk()
+        except Exception as exc:  # pragma: no cover - depends on environment
+            last = exc
+            time.sleep(0.4)
+    pytest.skip(f"no display available: {last}")
 
 
 def _click(button, window):

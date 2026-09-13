@@ -854,7 +854,9 @@ class ConvertAllApp(_Root):
 
         self.title(f"ConvertAll {__version__}")
         self.geometry("1180x820")
-        self.minsize(980, 660)
+        # Wide enough that the widest panel never clips: nothing scrolls
+        # horizontally, so anything past the right edge is unreachable.
+        self.minsize(1040, 660)
         with contextlib.suppress(Exception):
             self.iconbitmap(str(ASSETS / "icon.ico"))
 
