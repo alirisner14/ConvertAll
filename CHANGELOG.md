@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Nothing yet.
 
+## [0.2.1] - 2026-09-13
+
+### Fixed
+- **Every button was dead to the mouse.** `AccessibleButton` defined
+  `_on_enter` and `_on_leave`, the names CTkButton uses internally, so the
+  subclass silently overrode the parent's methods. CTkButton sets
+  `_mouse_inside` in those, and checks it before firing a button's command — so
+  no click ever reached one. The buttons still drew, hovered, took keyboard
+  focus and responded to Enter and Space; only the mouse did nothing. Drag and
+  drop was unaffected. Introduced in 0.2.0.
+- **The narrowest allowed window clipped its content.** The minimum width was
+  980, but the widest panel needs more than that leaves, and nothing scrolls
+  horizontally — so roughly 48px of controls sat off the right edge with no way
+  to reach them. The minimum is now 1040.
+- GUI tests no longer skip silently. Creating Tk roots in quick succession can
+  fail on Windows, and the suite was quietly skipping up to eight tests.
+
+### Added
+- `tests/test_widgets.py` drives the real click path across every button
+  variant, and enforces a structural rule — no private name may be defined on
+  both `AccessibleButton` and `CTkButton` — which needs no display and catches
+  that whole class of bug.
+- `tests/test_layout.py` shrinks the window to its minimum and checks that no
+  panel clips and every run button stays on screen.
+
 ## [0.2.0] - 2026-09-13
 
 ### Added
@@ -97,6 +122,7 @@ The first release.
   needed on Windows.
 - pytest suite covering every pipeline, runnable without a display.
 
-[Unreleased]: https://github.com/alirisner14/ConvertAll/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/alirisner14/ConvertAll/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/alirisner14/ConvertAll/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/alirisner14/ConvertAll/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/alirisner14/ConvertAll/releases/tag/v0.1.0
