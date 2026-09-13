@@ -21,12 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reads the frozen archive's table of contents rather than the filesystem.
 
 ### Changed
-- **New default palette.** Charcoal ground, off-white text, and a calm teal
-  accent replace the near-black-and-saturated-yellow scheme, which was tiring
-  at the surface area it covered. Hover no longer floods a whole button with
-  the accent — it tints the surface and recolours the label instead. Every
-  pairing still clears WCAG AAA, and `tests/test_theme.py` now enforces that
-  rather than trusting the comments.
+- **New palette, and no yellow in either theme.** The default is a charcoal
+  ground (`#2C2D30`) with off-white text (`#F7F5F6`) and a mint accent
+  (`#94F2C0`, 10.3:1). *Maximum contrast* drops its yellow for plain white on
+  black at 21:1, with the selected item inverting rather than tinting.
+  Saturated yellow scores well on paper and is tiring to actually look at.
+- Hover no longer floods a whole button with the accent — it tints the surface
+  and recolours the label, leaving one saturated block on screen instead of
+  lighting up the interface as the mouse moves.
+- `tests/test_theme.py` measures every colour pairing against WCAG 2.1 and
+  fails the build below threshold, so the palettes cannot quietly rot.
 - **Reorganised around intent rather than file type.** The five tools are now
   four: **Conversion** (you need a specific format), **Compression** (you want
   a smaller file), and a **Vector art tools** group holding **Tracing (Raster

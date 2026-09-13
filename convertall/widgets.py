@@ -3,9 +3,9 @@
 Accessibility notes that drive the code below:
 
 * Every interactive control is reachable with Tab and activates with Enter or
-  Space, and shows a 3px warm focus ring. The accent is a cool teal and the
-  ring is amber - about 140 degrees apart - so "where am I" and "what is under
-  the mouse" can never be confused, and focus always outranks hover.
+  Space, and shows a 3px warm focus ring. The accent is a cool mint and the
+  ring is orange - about 125 degrees apart - so "where am I" and "what is
+  under the mouse" can never be confused, and focus always outranks hover.
 * Hover changes *both* the label colour and the border, not just the fill, so
   it stays readable for users who cannot separate the two hues.
 * Help text is rendered as visible labels rather than hover tooltips, because

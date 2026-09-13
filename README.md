@@ -36,17 +36,22 @@ Two tools do most of the work — **Conversion** when you need a particular file
 This is the part that is easy to skip and shouldn't be.
 
 - **Two palettes, both measured.** The default **Charcoal** theme clears WCAG
-  2.1 **AAA** (7:1) for every piece of text on every surface — a neutral
-  charcoal ground, off-white text rather than glaring pure white, and a calm
-  teal accent. The *Maximum contrast* palette is pure black/white/yellow at
-  21:1 for low-vision use. Toggle with `Ctrl + D`.
+  2.1 **AAA** (7:1) for every piece of text on every surface — a charcoal
+  ground (`#2C2D30`), off-white text rather than glaring pure white, and a mint
+  accent at 10.3:1. *Maximum contrast* is white on black at 21:1, where the
+  selected item inverts to a white block rather than relying on a hue at all.
+  Toggle with `Ctrl + D`.
+- **No yellow anywhere.** High-contrast interfaces reach for saturated yellow
+  because it scores well, but it is genuinely unpleasant to look at for a long
+  session — including for some of the low-vision users it is meant to serve.
+  Both palettes hit their targets without it.
 - **The ratios are enforced, not claimed.** `tests/test_theme.py` computes every
   pairing against WCAG and fails the build if a colour edit drops text below
   threshold, so the palette cannot quietly rot.
 - **Live text scaling.** `Ctrl + +` / `Ctrl + -` scale every label, button and
   list in the app from 85% to 160%. The layout reflows; nothing is clipped.
-- **Hover and focus never share a signal.** The accent is a cool teal, the
-  focus ring a warm amber — about 140° apart in hue, which a contrast ratio
+- **Hover and focus never share a signal.** The accent is a cool mint, the
+  focus ring a warm orange — about 125° apart in hue, which a contrast ratio
   cannot express and a test checks directly. Focus always outranks hover, so
   moving the mouse never hides where the keyboard is.
 - **Everything is keyboard reachable.** Tab moves, Enter/Space activates, and

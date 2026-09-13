@@ -53,25 +53,25 @@ class Palette:
 DARK = Palette(
     key="dark",
     label="Charcoal",
-    bg="#1B1C1E",  # neutral charcoal, not a blue-black
-    surface="#232528",  # cards
-    surface_alt="#2C2F33",  # inputs, list rows, hover fills
-    border="#3C4045",  # quiet dividers
-    border_strong="#626870",  # 3.2:1 on bg - clears the 3:1 UI-component rule
-    text="#ECEDEF",  # 14.6:1 on bg (AAA) - off-white, never pure #FFF
-    text_muted="#BABFC6",  # 9.2:1 on bg, 7.3:1 on surface_alt (AAA)
-    accent="#2DD4BF",  # 9.2:1 on bg (AAA) - calm teal, not a flare
-    accent_hover="#6EE7D8",  # 12.4:1 on bg (AAA)
-    on_accent="#101214",  # 9.9:1 on accent (AAA)
-    focus="#FFB454",  # 9.7:1 on bg (AAA) - warm, so it never reads as hover
-    success="#6FD08C",  # 9.0:1 on bg (AAA)
-    warning="#E3B341",  # 8.8:1 on bg (AAA)
-    error="#FF9C9C",  # 8.2:1 on bg (AAA)
+    bg="#2C2D30",  # charcoal grey, chosen by the person who uses this most
+    surface="#323338",  # cards, barely lifted off the page
+    surface_alt="#393B40",  # inputs, list rows, hover fills
+    border="#45474D",  # quiet dividers
+    border_strong="#757A83",  # 3.2:1 on bg - clears the 3:1 UI-component rule
+    text="#F7F5F6",  # 12.7:1 on bg (AAA) - off-white, never pure #FFF
+    text_muted="#D0D4DA",  # 7.3:1 on the lightest surface (AAA)
+    accent="#94F2C0",  # 10.3:1 on bg (AAA) - mint; higher contrast than teal
+    accent_hover="#C2F9DC",  # 13.8:1 on bg (AAA)
+    on_accent="#14211A",  # 13.6:1 on accent (AAA)
+    focus="#FF9E64",  # orange ring, ~125 degrees from mint - never yellow
+    success="#7EE6A0",  # 9.0:1 on bg (AAA)
+    warning="#FFA94D",  # 7.2:1 on bg (AAA)
+    error="#FFA8A8",  # 7.5:1 on bg (AAA)
 )
 
-# Deliberately not a tasteful palette. This is the low-vision mode: yellow on
-# black is the highest-legibility pairing there is, and every border is pure
-# white so no edge can be missed.
+# The low-vision mode. Maximum separation, no yellow: white on black is 21:1,
+# the highest ratio that exists, and the selected item inverts to a white block
+# rather than relying on a hue at all.
 MAXIMUM = Palette(
     key="maximum",
     label="Maximum contrast",
@@ -82,12 +82,12 @@ MAXIMUM = Palette(
     border_strong="#FFFFFF",
     text="#FFFFFF",  # 21:1 - the highest possible
     text_muted="#FFFFFF",
-    accent="#FFFF00",  # 19.6:1
-    accent_hover="#FFFFFF",
+    accent="#FFFFFF",  # 21:1 - selection inverts instead of colouring
+    accent_hover="#94F2C0",  # mint hover, 15.4:1, ties it to the default theme
     on_accent="#000000",
-    focus="#00FFFF",
-    success="#00FF7F",
-    warning="#FFFF00",
+    focus="#00FFFF",  # 16.7:1 cyan ring, unmistakable against white and mint
+    success="#7CFFB0",
+    warning="#FFAE70",
     error="#FF8080",
 )
 
