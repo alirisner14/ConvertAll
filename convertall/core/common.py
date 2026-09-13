@@ -129,6 +129,34 @@ def ffmpeg_exe() -> str:
         ) from exc
 
 
+@lru_cache(maxsize=1)
+def available_encoders() -> frozenset[str]:
+    """Encoder names this FFmpeg build can actually use.
+
+    Builds vary - a system FFmpeg may lack libx265 or libaom-av1 entirely - so
+    check before offering a codec rather than failing cryptically mid-encode.
+    """
+    try:
+        proc = subprocess.run(
+            [ffmpeg_exe(), "-hide_banner", "-encoders"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=_NO_WINDOW,
+        )
+    except Exception:  # pragma: no cover - depends on environment
+        return frozenset()
+
+    names = set()
+    for line in (proc.stdout or "").splitlines():
+        parts = line.split()
+        # Rows look like: " V....D libx265    libx265 H.265 / HEVC (codec hevc)"
+        if len(parts) >= 2 and len(parts[0]) == 6 and parts[0][0] in "VAS":
+            names.add(parts[1])
+    return frozenset(names)
+
+
 def run_ffmpeg(args: list[str], log=None) -> None:
     """Run FFmpeg with the given arguments, raising on a non-zero exit."""
     cmd = [ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-nostdin", "-y", *args]

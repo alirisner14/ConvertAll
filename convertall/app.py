@@ -677,6 +677,7 @@ class CompressPanel(ToolPanel):
     def build_options(self, parent) -> None:
         self.preset = tk.StringVar(value=images_core.PRESET_LABELS["lossless"])
         self.to_webp = tk.BooleanVar(value=False)
+        self.video_codec = tk.StringVar(value=media_core.VIDEO_CODECS["h264"])
 
         row = self.row(
             parent,
@@ -702,11 +703,31 @@ class CompressPanel(ToolPanel):
             self.scale,
         ).pack(side="left")
 
+        row = self.row(
+            parent,
+            "Video codec",
+            "AV1 saves roughly twice what H.265 does, but takes around four "
+            "times as long to encode - worth it for large recordings you are "
+            "archiving. H.264 is the safe choice if the file must play anywhere.",
+        )
+        option_menu(
+            row,
+            self.palette,
+            list(media_core.VIDEO_CODECS.values()),
+            self.video_codec,
+            self.scale,
+            width=340,
+        ).pack(side="left")
+
     def make_job(self):
         preset_key = next(k for k, v in images_core.PRESET_LABELS.items() if v == self.preset.get())
+        codec_key = next(
+            k for k, v in media_core.VIDEO_CODECS.items() if v == self.video_codec.get()
+        )
         return smart_compress, {
             "preset": preset_key,
             "images_to_webp": bool(self.to_webp.get()),
+            "video_codec": codec_key,
         }
 
 

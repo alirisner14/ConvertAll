@@ -126,13 +126,37 @@ rules the pipeline follows:
 | PNG | `optimize`, `compress_level=9` | Lossless by definition. |
 | WAV / AIFF | **FLAC** | Mathematically lossless, usually ~50% smaller. |
 | MP3 / AAC / OGG | **Left untouched** | Re-encoding lossy audio only destroys it. |
-| Video | x264 CRF 18–21, AAC, `+faststart` | CRF 18 is the accepted visually-lossless point for x264. |
+| Video | H.264, H.265 or AV1 at CRF, audio stream copied | Your choice of codec — see below. Audio is copied rather than re-encoded, so it never loses a generation. |
 | SVG | Editor metadata stripped, coordinates rounded to 2dp | Geometry is never altered. |
 
 And a safety net: if an "optimised" file comes out *larger* than the original,
 ConvertAll keeps the original and says so in the log. This matters most for
 video — anything already efficiently encoded, or in a newer codec than H.264,
 can grow when re-encoded, so it is left alone.
+
+## Choosing a video codec
+
+Smart compression lets you pick the codec. Measured on screen-recording content
+(a lecture capture, slides with slow movement) against an H.264 source:
+
+| Codec | Size saved | Encode speed | Use it when |
+| --- | --- | --- | --- |
+| **H.264** | — | ~3× realtime | The file has to play on anything, including old hardware |
+| **H.265 / HEVC** | ~17% | ~2× realtime | You want a decent saving without a long wait |
+| **AV1** | ~34% | ~0.5× realtime | You are archiving and size matters more than time |
+
+AV1 saves roughly twice what H.265 does and costs about four times the encode
+time. For a one-hour recording that is roughly two hours of encoding — fine
+overnight, painful if you are waiting.
+
+Two things worth knowing before you compress a large library:
+
+- **Nothing is ever overwritten.** Output goes to a separate folder, so you
+  need room for both copies while the job runs. Check the results before you
+  delete any originals.
+- **Playback support.** H.264 plays everywhere. AV1 needs a recent player —
+  VLC, any current browser, or Windows with the AV1 Video Extension. H.265 on
+  Windows may prompt you to buy Microsoft's HEVC extension; VLC plays it free.
 
 ## Project layout
 

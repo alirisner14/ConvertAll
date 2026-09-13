@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **A video codec choice in Smart compression: H.264, H.265/HEVC or AV1.**
+  Measured on screen-recording content, H.265 saves about 17% over an H.264
+  source and AV1 about 34%, at roughly two and four times the encode time
+  respectively. Unavailable encoders are reported clearly instead of failing
+  mid-job.
+- Video audio streams are now copied rather than re-encoded to AAC, so they no
+  longer lose a generation. Sources whose audio cannot live in MP4 fall back to
+  AAC automatically.
 - `tools/build_exe.py` for building the Windows executable locally, with
   `--clean`, a `--smoke` flag that launches the result, and a bundle check that
   reads the frozen archive's table of contents rather than the filesystem.

@@ -413,6 +413,67 @@ def test_compressing_a_wasteful_video_actually_shrinks_it(tmp_path):
     assert result.bytes_out < result.bytes_in
 
 
+def test_unknown_video_codec_is_rejected():
+    from convertall.core.media import _video_args
+
+    with pytest.raises(ValueError, match="Unknown video codec"):
+        _video_args("vp9", "balanced")
+
+
+def test_codec_crf_tables_cover_every_codec_and_preset():
+    from convertall.core.images import PRESET_LABELS
+    from convertall.core.media import VIDEO_CODECS, VIDEO_CRF
+
+    assert set(VIDEO_CRF) == set(VIDEO_CODECS)
+    for codec, rows in VIDEO_CRF.items():
+        assert set(rows) == set(PRESET_LABELS), f"{codec} is missing a preset"
+
+
+@pytest.mark.skipif(not _ffmpeg_available(), reason="FFmpeg is not available")
+@pytest.mark.parametrize("codec", ["h264", "h265", "av1"])
+def test_every_codec_produces_a_playable_file(tmp_path, codec):
+    from convertall.core.common import available_encoders, ffmpeg_exe
+    from convertall.core.media import _CODEC_ENCODER, compress_video
+
+    encoders = available_encoders()
+    if encoders and _CODEC_ENCODER[codec] not in encoders:
+        pytest.skip(f"this FFmpeg build has no {_CODEC_ENCODER[codec]}")
+
+    src = tmp_path / "clip.mp4"
+    subprocess.run(
+        [
+            ffmpeg_exe(),
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=s=160x120:r=10:d=1",
+            "-c:v",
+            "libx264",
+            "-qp",
+            "0",
+            "-pix_fmt",
+            "yuv420p",
+            str(src),
+        ],
+        capture_output=True,
+        check=True,
+    )
+
+    result = compress_video(src, tmp_path / "out", preset="small", codec=codec)
+    assert result.ok and result.output.exists()
+    assert result.bytes_out > 0
+    assert _CODEC_ENCODER[codec] in result.message
+
+    # FFmpeg must be able to decode what we just wrote.
+    probe = subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-i", str(result.output), "-f", "null", "-"],
+        capture_output=True,
+        text=True,
+    )
+    assert probe.returncode == 0, probe.stderr
+
+
 @pytest.mark.skipif(not _ffmpeg_available(), reason="FFmpeg is not available")
 def test_wav_compresses_to_flac(tmp_path):
     from convertall.core.common import ffmpeg_exe

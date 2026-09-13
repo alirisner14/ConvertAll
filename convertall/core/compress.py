@@ -122,6 +122,7 @@ def smart_compress(
     out_dir: Path,
     preset: str = "lossless",
     images_to_webp: bool = False,
+    video_codec: str = "h264",
     log=None,
 ) -> TaskResult:
     """Compress any supported file with settings appropriate to its type."""
@@ -155,7 +156,7 @@ def smart_compress(
         return compress_audio_lossless(src, out_dir, log=log)
 
     if kind == "video":
-        result = compress_video(src, out_dir, preset=preset, log=log)
+        result = compress_video(src, out_dir, preset=preset, codec=video_codec, log=log)
         # Video is the likeliest place for a re-encode to backfire: anything
         # already efficiently encoded, or in a newer codec than H.264, can come
         # out larger *and* slightly worse. Never hand that back as a success.
