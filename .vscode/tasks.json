@@ -24,7 +24,13 @@
     {
       "label": "Build Windows executable",
       "type": "shell",
-      "command": "${workspaceFolder}/.venv/Scripts/python.exe -m PyInstaller --noconfirm ConvertAll.spec",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe tools/build_exe.py --clean",
+      "problemMatcher": []
+    },
+    {
+      "label": "Build Windows executable + smoke test",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe tools/build_exe.py --clean --smoke",
       "problemMatcher": []
     }
   ]
