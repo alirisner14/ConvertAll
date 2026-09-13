@@ -16,3 +16,11 @@ updates:
     schedule:
       interval: monthly
     labels: ["dependencies", "github-actions"]
+    groups:
+      # Actions are grouped across every update type, majors included. A major
+      # bump of a first-party action is routine, and reviewing five near
+      # identical PRs is worse than reviewing one. Python dependencies above
+      # deliberately group only minor and patch, so a major bump of Pillow or
+      # customtkinter still arrives on its own and gets read properly.
+      github-actions:
+        patterns: ["*"]
