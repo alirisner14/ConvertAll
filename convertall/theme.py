@@ -61,7 +61,7 @@ DARK = Palette(
     text="#F7F5F6",  # 12.7:1 on bg (AAA) - off-white, never pure #FFF
     text_muted="#D0D4DA",  # 7.3:1 on the lightest surface (AAA)
     accent="#94F2C0",  # 10.3:1 on bg (AAA) - mint; higher contrast than teal
-    accent_hover="#C2F9DC",  # 13.8:1 on bg (AAA)
+    accent_hover="#6FD9A3",  # darker mint - hover presses down, never flares
     on_accent="#14211A",  # 13.6:1 on accent (AAA)
     focus="#FF9E64",  # orange ring, ~125 degrees from mint - never yellow
     success="#7EE6A0",  # 9.0:1 on bg (AAA)
@@ -83,7 +83,7 @@ MAXIMUM = Palette(
     text="#FFFFFF",  # 21:1 - the highest possible
     text_muted="#FFFFFF",
     accent="#FFFFFF",  # 21:1 - selection inverts instead of colouring
-    accent_hover="#94F2C0",  # mint hover, 15.4:1, ties it to the default theme
+    accent_hover="#CFCFCF",  # darker white, same "press down" behaviour
     on_accent="#000000",
     focus="#00FFFF",  # 16.7:1 cyan ring, unmistakable against white and mint
     success="#7CFFB0",
@@ -93,14 +93,15 @@ MAXIMUM = Palette(
 
 PALETTES: dict[str, Palette] = {p.key: p for p in (DARK, MAXIMUM)}
 
-# Type scale. The app can step every size up or down together (Ctrl +/-) so the
-# whole interface scales for low-vision users without breaking the layout.
+# Type scale. These are ordinary desktop-application sizes - the app should look
+# normal out of the box, not pre-enlarged. Ctrl +/- steps every size together,
+# up to 160%, for anyone who wants it larger.
 BASE_SIZES = {
-    "display": 26,
-    "title": 19,
-    "body": 15,
-    "small": 13,
-    "mono": 13,
+    "display": 22,
+    "title": 16,
+    "body": 14,
+    "small": 12,
+    "mono": 12,
 }
 FONT_FAMILY = "Segoe UI"
 MONO_FAMILY = "Cascadia Mono"

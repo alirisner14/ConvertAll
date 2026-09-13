@@ -26,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`#94F2C0`, 10.3:1). *Maximum contrast* drops its yellow for plain white on
   black at 21:1, with the selected item inverting rather than tinting.
   Saturated yellow scores well on paper and is tiring to actually look at.
+- **Hover darkens instead of lightening.** The mint and white accents step down
+  on hover rather than flaring up, so the interface never gets brighter as the
+  mouse moves across it.
+- **The default type scale is ordinary desktop size**, not pre-enlarged. Text
+  scaling is an option (`Ctrl` + `+`, up to 160%) rather than the starting
+  point, so the app looks like a normal application out of the box.
 - Hover no longer floods a whole button with the accent — it tints the surface
   and recolours the label, leaving one saturated block on screen instead of
   lighting up the interface as the mouse moves.
