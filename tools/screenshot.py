@@ -49,7 +49,7 @@ def capture(app, name: str) -> Path:
 
     app.attributes("-topmost", False)
 
-    if not _looks_like_convertall(shot):
+    if not _looks_like_convertall(shot, app.palette):
         debug = Path(tempfile.gettempdir()) / f"convertall-bad-grab-{name}"
         shot.save(debug)
         raise SystemExit(
@@ -64,16 +64,18 @@ def capture(app, name: str) -> Path:
     return path
 
 
-def _looks_like_convertall(shot) -> bool:
+def _looks_like_convertall(shot, palette) -> bool:
     """Cheap sanity check before an image is written into assets/.
 
     ImageGrab takes a screen region, so a window that steals focus mid-run gets
     photographed instead - and that image would go straight into the README of
-    a public repo. Two cheap signals together are enough to catch it: a dark
-    strip along the very top of the window, and a meaningful amount of the
-    amber accent (the wordmark plus the selected tool button). Sampling any
-    lower than the top few pixels runs through the wordmark itself, which is
-    exactly the false negative this replaced.
+    a public repo. Two signals together catch it: a dark strip along the very
+    top of the window, and a meaningful amount of the *current palette's*
+    accent, which the selected tool button fills with.
+
+    The accent is read from the palette rather than hard-coded. An earlier
+    version tested for amber and started rejecting perfectly good captures the
+    moment the palette changed to teal.
     """
     rgb = shot.convert("RGB")
     width, height = rgb.size
@@ -84,10 +86,13 @@ def _looks_like_convertall(shot) -> bool:
     strip = [rgb.getpixel((x, band_y)) for x in range(5, width, max(1, width // 30))]
     dark_top = sum(1 for r, g, b in strip if r < 70 and g < 70 and b < 80) >= len(strip) * 0.8
 
+    want = tuple(int(palette.accent.lstrip("#")[i : i + 2], 16) for i in (0, 2, 4))
     small = rgb.resize((160, 100))
-    accent = sum(1 for r, g, b in small.getdata() if r > 200 and g > 170 and b < 120)
+    accent = sum(
+        1 for px in small.getdata() if sum((px[i] - want[i]) ** 2 for i in range(3)) < 60**2
+    )
 
-    return dark_top and accent > 40
+    return dark_top and accent > 30
 
 
 def sample_files() -> list[str]:

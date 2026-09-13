@@ -1017,7 +1017,7 @@ class ConvertAllApp(_Root):
             fg_color=p.surface_alt,
             progress_color=p.accent,
             border_color=p.border,
-            border_width=2,
+            border_width=1,
         )
         self.progress.set(0)
         self.progress.pack(fill="x", padx=16, pady=(0, 8))

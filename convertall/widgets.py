@@ -3,11 +3,11 @@
 Accessibility notes that drive the code below:
 
 * Every interactive control is reachable with Tab and activates with Enter or
-  Space, and shows a 3px cyan focus ring that is visually distinct from the
-  amber hover state - so "where am I" and "what will react to my mouse" are
-  never the same signal.
-* Hover states change *both* fill and border, not just fill, which keeps them
-  readable for users who cannot distinguish the two colours.
+  Space, and shows a 3px warm focus ring. The accent is a cool teal and the
+  ring is amber - about 140 degrees apart - so "where am I" and "what is under
+  the mouse" can never be confused, and focus always outranks hover.
+* Hover changes *both* the label colour and the border, not just the fill, so
+  it stays readable for users who cannot separate the two hues.
 * Help text is rendered as visible labels rather than hover tooltips, because
   tooltips are invisible to keyboard and screen-reader users.
 """
@@ -22,7 +22,7 @@ import customtkinter as ctk
 
 from .theme import FONT_FAMILY, MONO_FAMILY, Palette, sized
 
-CORNER = 10
+CORNER = 8
 
 
 def _force(widget, **options) -> None:
@@ -36,10 +36,14 @@ def add_focus_ring(button: ctk.CTkButton, palette: Palette, resting_border: str)
     _force(button, takefocus=1)
 
     def on_focus(_event=None):
+        button._focused = True
         button.configure(border_color=palette.focus, border_width=3)
 
     def off_focus(_event=None):
-        button.configure(border_color=resting_border, border_width=2)
+        button._focused = False
+        button.configure(
+            border_color=getattr(button, "_resting_border", resting_border), border_width=2
+        )
 
     def activate(_event=None):
         button.invoke()
@@ -70,35 +74,52 @@ class AccessibleButton(ctk.CTkButton):
         weight = "bold" if variant in ("primary", "nav") else "normal"
         size = sized("title" if variant == "primary" else "body", scale)
 
+        # Only the primary action fills with the accent. Everything else hovers
+        # to a quiet surface tint and switches its *label* to the accent - a
+        # whole button flooding with colour on every mouse-over is what makes an
+        # interface tiring to use.
         styles = {
-            # variant: (fill, hover fill, label, hover label, border)
-            "primary": (
-                palette.accent,
-                palette.accent_hover,
-                palette.on_accent,
-                palette.on_accent,
-                palette.accent,
-            ),
-            "secondary": (
-                "transparent",
-                palette.accent,
-                palette.text,
-                palette.on_accent,
-                palette.border_strong,
-            ),
-            "quiet": (
-                "transparent",
-                palette.surface_alt,
-                palette.text_muted,
-                palette.text,
-                palette.border,
-            ),
-            "danger": ("transparent", palette.error, palette.error, palette.bg, palette.error),
+            "primary": {
+                "fill": palette.accent,
+                "hover": palette.accent_hover,
+                "fg": palette.on_accent,
+                "hover_fg": palette.on_accent,
+                "border": palette.accent,
+                "hover_border": palette.accent_hover,
+            },
+            "secondary": {
+                "fill": "transparent",
+                "hover": palette.surface_alt,
+                "fg": palette.text,
+                "hover_fg": palette.accent,
+                "border": palette.border_strong,
+                "hover_border": palette.accent,
+            },
+            "quiet": {
+                "fill": "transparent",
+                "hover": palette.surface_alt,
+                "fg": palette.text_muted,
+                "hover_fg": palette.text,
+                "border": palette.border,
+                "hover_border": palette.border_strong,
+            },
+            "danger": {
+                "fill": "transparent",
+                "hover": palette.surface_alt,
+                "fg": palette.error,
+                "hover_fg": palette.error,
+                "border": palette.error,
+                "hover_border": palette.error,
+            },
         }
-        fill, hover, label_fg, hover_fg, border = styles.get(variant, styles["primary"])
+        style = styles.get(variant, styles["primary"])
+        fill, hover = style["fill"], style["hover"]
+        border = style["border"]
+        self._focused = False
         self._resting_border = border
-        self._label_fg = label_fg
-        self._hover_fg = hover_fg
+        self._label_fg = style["fg"]
+        self._hover_fg = style["hover_fg"]
+        self._hover_border = style["hover_border"]
 
         super().__init__(
             master,
@@ -106,7 +127,7 @@ class AccessibleButton(ctk.CTkButton):
             command=command,
             fg_color=fill,
             hover_color=hover,
-            text_color=label_fg,
+            text_color=style["fg"],
             border_color=border,
             border_width=2,
             corner_radius=CORNER,
@@ -114,27 +135,50 @@ class AccessibleButton(ctk.CTkButton):
             cursor="hand2",
             **kwargs,
         )
-        # Flip the label colour on hover too, so contrast never drops.
-        self.bind("<Enter>", lambda e: self.configure(text_color=self._hover_fg), add="+")
-        self.bind("<Leave>", lambda e: self.configure(text_color=self._label_fg), add="+")
+        self.bind("<Enter>", self._on_enter, add="+")
+        self.bind("<Leave>", self._on_leave, add="+")
         add_focus_ring(self, palette, border)
 
+    def _on_enter(self, _event=None) -> None:
+        self.configure(text_color=self._hover_fg)
+        # Never paint over the focus ring: keyboard position outranks the mouse.
+        if not self._focused:
+            self.configure(border_color=self._hover_border)
+
+    def _on_leave(self, _event=None) -> None:
+        self.configure(text_color=self._label_fg)
+        if not self._focused:
+            self.configure(border_color=self._resting_border)
+
     def set_active(self, active: bool) -> None:
-        """Used by the sidebar to mark the current tool."""
+        """Mark the current tool in the sidebar.
+
+        The selected item gets a filled accent pill - one small saturated block
+        on screen, which reads instantly without the eye strain of colouring
+        every control.
+        """
         if active:
+            self._label_fg = self.palette.on_accent
+            self._hover_fg = self.palette.on_accent
+            self._resting_border = self.palette.accent
+            self._hover_border = self.palette.accent_hover
             self.configure(
                 fg_color=self.palette.accent,
+                hover_color=self.palette.accent_hover,
                 text_color=self.palette.on_accent,
                 border_color=self.palette.accent,
             )
-            self._label_fg = self.palette.on_accent
         else:
+            self._label_fg = self.palette.text
+            self._hover_fg = self.palette.accent
+            self._resting_border = self.palette.border_strong
+            self._hover_border = self.palette.accent
             self.configure(
                 fg_color="transparent",
+                hover_color=self.palette.surface_alt,
                 text_color=self.palette.text,
-                border_color=self._resting_border,
+                border_color=self.palette.border_strong,
             )
-            self._label_fg = self.palette.text
 
 
 class Card(ctk.CTkFrame):
@@ -145,7 +189,7 @@ class Card(ctk.CTkFrame):
             master,
             fg_color=palette.surface,
             border_color=palette.border,
-            border_width=2,
+            border_width=1,
             corner_radius=CORNER + 2,
             **kwargs,
         )

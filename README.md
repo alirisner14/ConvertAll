@@ -35,14 +35,20 @@ Two tools do most of the work — **Conversion** when you need a particular file
 
 This is the part that is easy to skip and shouldn't be.
 
-- **Two high-contrast palettes.** The default dark theme clears WCAG 2.1 **AAA**
-  (7:1) for body text; the *Maximum contrast* palette is pure black/white/yellow
-  at 21:1. Toggle with `Ctrl + D`.
+- **Two palettes, both measured.** The default **Charcoal** theme clears WCAG
+  2.1 **AAA** (7:1) for every piece of text on every surface — a neutral
+  charcoal ground, off-white text rather than glaring pure white, and a calm
+  teal accent. The *Maximum contrast* palette is pure black/white/yellow at
+  21:1 for low-vision use. Toggle with `Ctrl + D`.
+- **The ratios are enforced, not claimed.** `tests/test_theme.py` computes every
+  pairing against WCAG and fails the build if a colour edit drops text below
+  threshold, so the palette cannot quietly rot.
 - **Live text scaling.** `Ctrl + +` / `Ctrl + -` scale every label, button and
   list in the app from 85% to 160%. The layout reflows; nothing is clipped.
-- **Hover and focus never share a signal.** Hover is amber fill *and* border;
-  keyboard focus is a 3px cyan ring. You can always tell which is which — and
-  hover flips the label colour too, so contrast never drops on the way past.
+- **Hover and focus never share a signal.** The accent is a cool teal, the
+  focus ring a warm amber — about 140° apart in hue, which a contrast ratio
+  cannot express and a test checks directly. Focus always outranks hover, so
+  moving the mouse never hides where the keyboard is.
 - **Everything is keyboard reachable.** Tab moves, Enter/Space activates, and
   every action has a shortcut (press `F1` for the full list).
 - **Help text is visible, not hovered.** Options carry printed descriptions
