@@ -36,11 +36,11 @@ def add_focus_ring(button: ctk.CTkButton, palette: Palette, resting_border: str)
     _force(button, takefocus=1)
 
     def on_focus(_event=None):
-        button._focused = True
+        button._has_focus_ring = True
         button.configure(border_color=palette.focus, border_width=3)
 
     def off_focus(_event=None):
-        button._focused = False
+        button._has_focus_ring = False
         button.configure(
             border_color=getattr(button, "_resting_border", resting_border), border_width=2
         )
@@ -115,7 +115,7 @@ class AccessibleButton(ctk.CTkButton):
         style = styles.get(variant, styles["primary"])
         fill, hover = style["fill"], style["hover"]
         border = style["border"]
-        self._focused = False
+        self._has_focus_ring = False
         self._resting_border = border
         self._label_fg = style["fg"]
         self._hover_fg = style["hover_fg"]
@@ -135,19 +135,24 @@ class AccessibleButton(ctk.CTkButton):
             cursor="hand2",
             **kwargs,
         )
-        self.bind("<Enter>", self._on_enter, add="+")
-        self.bind("<Leave>", self._on_leave, add="+")
+        self.bind("<Enter>", self._hover_on, add="+")
+        self.bind("<Leave>", self._hover_off, add="+")
         add_focus_ring(self, palette, border)
 
-    def _on_enter(self, _event=None) -> None:
+    # These deliberately avoid CTkButton's own _on_enter/_on_leave names.
+    # Defining methods with those names silently overrides the parent's, and
+    # CTkButton sets self._mouse_inside inside them - which _on_release checks
+    # before calling the command. Shadowing them makes every button dead to the
+    # mouse while still looking and hovering correctly.
+    def _hover_on(self, _event=None) -> None:
         self.configure(text_color=self._hover_fg)
         # Never paint over the focus ring: keyboard position outranks the mouse.
-        if not self._focused:
+        if not self._has_focus_ring:
             self.configure(border_color=self._hover_border)
 
-    def _on_leave(self, _event=None) -> None:
+    def _hover_off(self, _event=None) -> None:
         self.configure(text_color=self._label_fg)
-        if not self._focused:
+        if not self._has_focus_ring:
             self.configure(border_color=self._resting_border)
 
     def set_active(self, active: bool) -> None:
