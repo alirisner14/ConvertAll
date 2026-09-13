@@ -19,6 +19,7 @@ from tkinter import filedialog, messagebox
 import customtkinter as ctk
 
 from . import __version__
+from .core import convert as convert_core
 from .core import images as images_core
 from .core import media as media_core
 from .core import svgsplit as svg_core
@@ -31,10 +32,10 @@ from .core.common import (
     collect_files,
     default_output_dir,
     human,
+    kind_of,
 )
 from .core.compress import smart_compress
-from .core.images import convert_image
-from .core.media import audio_to_mp4
+from .core.convert import convert_file
 from .core.svgsplit import split_svg
 from .core.vectorize import trace_image
 from .jobs import JobRunner, JobSummary
@@ -105,6 +106,7 @@ class ToolPanel(ctk.CTkScrollableFrame):
     description = ""
     accepted: set[str] = set()
     file_label = "Files"
+    drop_hint = "any supported file"
     action_text = "Convert"
     dialog_name = "Supported files"
 
@@ -120,6 +122,7 @@ class ToolPanel(ctk.CTkScrollableFrame):
         self.palette = palette
         self.scale = scale
         self.output_dir: Path | None = None
+        self.option_rows: dict[str, ctk.CTkFrame] = {}
 
         label(self, palette, self.title, kind="display", scale=scale).pack(
             fill="x", padx=4, pady=(2, 2)
@@ -138,11 +141,8 @@ class ToolPanel(ctk.CTkScrollableFrame):
         card = Card(self, self.palette, self.file_label, scale=self.scale)
         card.pack(fill="both", expand=True, padx=4, pady=(0, 14))
 
-        hint = (
-            "Drag files in, or use the buttons below."
-            if DND_AVAILABLE
-            else "Use the buttons below to choose files."
-        )
+        verb = "Drop or Browse" if DND_AVAILABLE else "Browse"
+        hint = f"{verb} for {self.drop_hint}"
         label(card, self.palette, hint, kind="small", scale=self.scale, muted=True).pack(
             fill="x", padx=16, pady=(0, 8)
         )
@@ -157,7 +157,7 @@ class ToolPanel(ctk.CTkScrollableFrame):
         self._enable_drop(self.files.listbox)
 
         for text, command, variant in (
-            ("Add files…", self.add_files, "secondary"),
+            ("Browse…", self.add_files, "secondary"),
             ("Add folder…", self.add_folder, "secondary"),
             ("Remove selected", self.files.remove_selected, "quiet"),
             ("Clear all", self.clear_files, "quiet"),
@@ -224,6 +224,10 @@ class ToolPanel(ctk.CTkScrollableFrame):
         )
         if count and not self.output_dir:
             self.set_output(default_output_dir([Path(p) for p in self.files.paths]))
+        self.on_files_changed()
+
+    def on_files_changed(self) -> None:
+        """Hook for panels whose options depend on which files are loaded."""
 
     # -- options (subclasses override) -------------------------------------- #
 
@@ -242,10 +246,12 @@ class ToolPanel(ctk.CTkScrollableFrame):
             muted=True,
         ).pack(fill="x", padx=16, pady=(0, 16))
 
-    def row(self, parent, text: str, hint: str = "") -> ctk.CTkFrame:
+    def row(self, parent, text: str, hint: str = "", name: str = "") -> ctk.CTkFrame:
         """A labelled options row with optional visible help text."""
         wrapper = ctk.CTkFrame(parent, fg_color="transparent")
         wrapper.pack(fill="x", padx=16, pady=(0, 12))
+        if name:
+            self.option_rows[name] = wrapper
         label(wrapper, self.palette, text, kind="body", scale=self.scale).pack(
             anchor="w", pady=(0, 4)
         )
@@ -369,35 +375,56 @@ class ToolPanel(ctk.CTkScrollableFrame):
         self.cancel_button.configure(state="normal" if running else "disabled")
 
 
-class ImagesPanel(ToolPanel):
-    key = "images"
-    title = "Image conversion"
+class ConversionPanel(ToolPanel):
+    key = "conversion"
+    title = "Conversion"
     description = (
-        "Batch-convert images. PNG to WebP, HEIC to PNG or JPG, and PNG or JPG to "
-        "multi-resolution ICO icons. Transparency, colour profiles and EXIF "
-        "rotation are all preserved."
+        "Use this when you need a specific file type. Add files, then pick what "
+        "to turn them into - the list only offers formats every selected file "
+        "can actually become."
     )
-    accepted = IMAGE_EXTS
-    file_label = "Images"
-    dialog_name = "Images"
+    accepted = convert_core.ACCEPTED
+    file_label = "Files"
+    drop_hint = "any image, audio, or video file"
+    action_text = "Convert"
+    dialog_name = "Images, audio and video"
+
+    # Rows are re-packed in this order whenever visibility changes, so hiding
+    # one never shuffles the rest.
+    ROW_ORDER = ("target", "quality", "resize", "background", "resolution", "bgcolour", "codec")
 
     def build_options(self, parent) -> None:
-        self.target = tk.StringVar(value="WebP")
+        self.targets: list[str] = []
+        self.background: Path | None = None
+        self.target = tk.StringVar(value="")
         self.preset = tk.StringVar(value=images_core.PRESET_LABELS["lossless"])
         self.resize = tk.StringVar(value="Keep original size")
+        self.resolution = tk.StringVar(value=list(media_core.RESOLUTIONS)[0])
+        self.bg_colour = tk.StringVar(value="Black")
+        self.video_codec = tk.StringVar(value=media_core.VIDEO_CODECS["h264"])
 
-        row = self.row(
-            parent, "Convert to", "ICO output writes every icon size into a single .ico file."
+        row = self.row(parent, "Convert to", name="target")
+        self.target_menu = option_menu(
+            row,
+            self.palette,
+            ["-"],
+            self.target,
+            self.scale,
+            width=180,
+            command=lambda _v: self._apply_visibility(),
         )
-        option_menu(row, self.palette, ["WebP", "PNG", "JPG", "ICO"], self.target, self.scale).pack(
-            side="left"
+        self.target_menu.pack(side="left")
+        self.target_hint = label(
+            row, self.palette, "", kind="small", scale=self.scale, muted=True, wraplength=460
         )
+        self.target_hint.pack(side="left", padx=12)
 
         row = self.row(
             parent,
             "Quality",
             "Visually lossless keeps flat artwork bit-perfect and photos "
             "indistinguishable from the original.",
+            name="quality",
         )
         option_menu(
             row,
@@ -408,7 +435,7 @@ class ImagesPanel(ToolPanel):
             width=240,
         ).pack(side="left")
 
-        row = self.row(parent, "Maximum size")
+        row = self.row(parent, "Maximum size", name="resize")
         option_menu(
             row,
             self.palette,
@@ -417,43 +444,16 @@ class ImagesPanel(ToolPanel):
             self.scale,
         ).pack(side="left")
 
-    def make_job(self):
-        preset_key = next(k for k, v in images_core.PRESET_LABELS.items() if v == self.preset.get())
-        chosen = self.resize.get()
-        max_dim = None if chosen.startswith("Keep") else int(chosen.split()[0])
-        return convert_image, {
-            "target": self.target.get().lower(),
-            "preset": preset_key,
-            "max_dimension": max_dim,
-        }
-
-
-class AudioToMp4Panel(ToolPanel):
-    key = "audio-mp4"
-    title = "Audio to MP4"
-    description = (
-        "Convert an audio file into an .mp4, so it can be uploaded anywhere that "
-        "only accepts video. Add a still image for the background, or leave it "
-        "empty for a flat colour track that costs almost nothing in file size."
-    )
-    accepted = AUDIO_EXTS
-    file_label = "Audio files"
-    action_text = "Convert to MP4"
-    dialog_name = "Audio"
-
-    def build_options(self, parent) -> None:
-        self.background: Path | None = None
-        self.resolution = tk.StringVar(value=list(media_core.RESOLUTIONS)[0])
-        self.preset = tk.StringVar(value=images_core.PRESET_LABELS["balanced"])
-        self.bg_colour = tk.StringVar(value="Black")
-
         row = self.row(
-            parent, "Background image", "Optional. Scaled to fit and padded - never stretched."
+            parent,
+            "Background image",
+            "Optional. Scaled to fit and padded - never stretched.",
+            name="background",
         )
         AccessibleButton(
             row,
             self.palette,
-            "Choose image…",
+            "Choose image...",
             self._pick_background,
             variant="secondary",
             scale=self.scale,
@@ -478,12 +478,17 @@ class AudioToMp4Panel(ToolPanel):
         )
         self.bg_label.pack(side="left", padx=10)
 
-        row = self.row(parent, "Resolution")
+        row = self.row(parent, "Video size", name="resolution")
         option_menu(
-            row, self.palette, list(media_core.RESOLUTIONS), self.resolution, self.scale, width=240
+            row,
+            self.palette,
+            list(media_core.RESOLUTIONS),
+            self.resolution,
+            self.scale,
+            width=240,
         ).pack(side="left")
 
-        row = self.row(parent, "Background colour")
+        row = self.row(parent, "Background colour", name="bgcolour")
         option_menu(
             row,
             self.palette,
@@ -493,20 +498,89 @@ class AudioToMp4Panel(ToolPanel):
             width=180,
         ).pack(side="left")
 
-        row = self.row(parent, "Quality", "Controls the audio bitrate and video CRF.")
+        row = self.row(
+            parent,
+            "Video codec",
+            "AV1 saves roughly twice what H.265 does, but takes around four "
+            "times as long to encode.",
+            name="codec",
+        )
         option_menu(
             row,
             self.palette,
-            list(images_core.PRESET_LABELS.values()),
-            self.preset,
+            list(media_core.VIDEO_CODECS.values()),
+            self.video_codec,
             self.scale,
-            width=240,
+            width=340,
         ).pack(side="left")
+
+        self._refresh_targets()
+
+    # -- dynamic format list ------------------------------------------------ #
+
+    def on_files_changed(self) -> None:
+        if hasattr(self, "target_menu"):
+            self._refresh_targets()
+
+    def _refresh_targets(self) -> None:
+        paths = [Path(p) for p in self.files.paths]
+        self.targets = convert_core.targets_for(paths)
+        labels = [convert_core.TARGET_LABELS[t] for t in self.targets]
+
+        if labels:
+            self.target_menu.configure(values=labels)
+            if self.target.get() not in labels:
+                self.target.set(labels[0])
+        else:
+            self.target_menu.configure(values=["-"])
+            self.target.set("-")
+        self._apply_visibility()
+
+    def _current_target(self) -> str | None:
+        for key, text in convert_core.TARGET_LABELS.items():
+            if text == self.target.get() and key in self.targets:
+                return key
+        return None
+
+    def _kinds(self) -> set[str]:
+        return {kind_of(Path(p)) for p in self.files.paths}
+
+    def _apply_visibility(self) -> None:
+        target = self._current_target()
+        kinds = self._kinds()
+        visible = {"target"}
+
+        if target in convert_core.IMAGE_TARGETS:
+            visible |= {"quality", "resize"}
+        elif target == "mp4":
+            visible.add("quality")
+            if "audio" in kinds:
+                visible |= {"background", "resolution", "bgcolour"}
+            if "video" in kinds:
+                visible.add("codec")
+
+        for name in self.ROW_ORDER:
+            row = self.option_rows.get(name)
+            if row is not None:
+                row.pack_forget()
+        for name in self.ROW_ORDER:
+            row = self.option_rows.get(name)
+            if row is not None and name in visible:
+                row.pack(fill="x", padx=16, pady=(0, 12))
+
+        if target:
+            self.target_hint.configure(text=convert_core.TARGET_HINTS.get(target, ""))
+        elif self.files.paths:
+            self.target_hint.configure(
+                text="These files have no target format in common - convert them in "
+                "separate batches."
+            )
+        else:
+            self.target_hint.configure(text="Add files to see what they can become.")
 
     def _pick_background(self) -> None:
         chosen = filedialog.askopenfilename(
-            title="Choose a background image",
-            filetypes=_filetypes(IMAGE_EXTS, "Images"),
+            title="Choose a background image", filetypes=_filetypes(IMAGE_EXTS, "Images")
         )
         if chosen:
             self.background = Path(chosen)
@@ -516,27 +590,48 @@ class AudioToMp4Panel(ToolPanel):
         self.background = None
         self.bg_label.configure(text="None - a flat colour will be used")
 
+    # -- run ---------------------------------------------------------------- #
+
+    def run(self) -> None:
+        if self.files.paths and not self.targets:
+            self.app.log_line("Nothing to convert - these files have no format in common.", "warn")
+            messagebox.showinfo(
+                "ConvertAll",
+                "These files have no target format in common.\n\n"
+                "Convert them in separate batches - images together, audio together.",
+            )
+            return
+        super().run()
+
     def make_job(self):
         preset_key = next(k for k, v in images_core.PRESET_LABELS.items() if v == self.preset.get())
+        codec_key = next(
+            k for k, v in media_core.VIDEO_CODECS.items() if v == self.video_codec.get()
+        )
+        chosen = self.resize.get()
         colours = {"Black": "black", "White": "white", "Dark grey": "0x1E2936"}
-        return audio_to_mp4, {
+        return convert_file, {
+            "target": self._current_target() or "",
+            "preset": preset_key,
+            "max_dimension": None if chosen.startswith("Keep") else int(chosen.split()[0]),
             "background": self.background,
             "resolution": media_core.RESOLUTIONS[self.resolution.get()],
-            "preset": preset_key,
             "background_color": colours[self.bg_colour.get()],
+            "video_codec": codec_key,
         }
 
 
 class TracePanel(ToolPanel):
     key = "trace"
-    title = "Raster to vector"
+    title = "Tracing (Raster to Vector)"
     description = (
         "Auto-trace artwork into clean, infinitely scalable .svg curves. Use the "
         "colour engine for logos and illustration; the black & white engine gives "
         "the crispest result for line art and silhouettes."
     )
     accepted = IMAGE_EXTS
-    file_label = "Images to trace"
+    file_label = "Files"
+    drop_hint = "any image to trace"
     action_text = "Trace to SVG"
     dialog_name = "Images"
 
@@ -617,7 +712,7 @@ class TracePanel(ToolPanel):
 
 class SplitPanel(ToolPanel):
     key = "split"
-    title = "Split SVG layers"
+    title = "Split SVG Layers"
     description = (
         "Break a layered .svg into one standalone file per layer, group or shape. "
         "Gradients, filters and CSS are copied into every piece and the original "
@@ -625,7 +720,8 @@ class SplitPanel(ToolPanel):
         "together exactly."
     )
     accepted = VECTOR_EXTS
-    file_label = "SVG files"
+    file_label = "Files"
+    drop_hint = "any .svg file"
     action_text = "Split files"
     dialog_name = "SVG files"
 
@@ -660,17 +756,19 @@ class SplitPanel(ToolPanel):
         }
 
 
-class CompressPanel(ToolPanel):
+class CompressionPanel(ToolPanel):
     key = "compress"
-    title = "Smart compression"
+    title = "Compression"
     description = (
-        "Drop in anything. Images are re-encoded with optimal settings, WAV becomes "
-        "FLAC (bit-for-bit identical, about half the size), video is re-encoded with "
-        "x264 and SVG has its editor metadata stripped. Already-lossy audio is left "
-        "untouched, and any file that would grow is kept as-is."
+        "Use this when a smaller file is the goal and the format is not. Each "
+        "file type gets the encoder settings that suit it: flat artwork goes "
+        "true-lossless, WAV becomes FLAC, video is re-encoded in the codec you "
+        "pick, and SVG has its editor metadata stripped. Already-lossy audio is "
+        "left untouched, and any file that would grow keeps its original bytes."
     )
     accepted = IMAGE_EXTS | AUDIO_EXTS | VIDEO_EXTS | VECTOR_EXTS
-    file_label = "Files to compress"
+    file_label = "Files"
+    drop_hint = "any image, audio, video, or SVG file"
     action_text = "Compress"
     dialog_name = "Media files"
 
@@ -731,7 +829,11 @@ class CompressPanel(ToolPanel):
         }
 
 
-PANELS = [ImagesPanel, AudioToMp4Panel, TracePanel, SplitPanel, CompressPanel]
+TOOL_GROUPS = [
+    ("Tools", [ConversionPanel, CompressionPanel]),
+    ("Vector art tools", [TracePanel, SplitPanel]),
+]
+PANELS = [cls for _, group in TOOL_GROUPS for cls in group]
 
 
 # --------------------------------------------------------------------------- #
@@ -847,28 +949,31 @@ class ConvertAllApp(_Root):
         bar.grid(row=1, column=0, sticky="nsw", padx=(0, 18))
         bar.grid_propagate(False)
 
-        ctk.CTkLabel(
-            bar,
-            text="TOOLS",
-            text_color=p.text_muted,
-            font=(FONT_FAMILY, sized("small", self.scale), "bold"),
-            anchor="w",
-        ).pack(fill="x", padx=20, pady=(18, 8))
-
         self.nav_buttons: dict[str, AccessibleButton] = {}
-        for index, cls in enumerate(PANELS, start=1):
-            button = AccessibleButton(
+        index = 0
+        for position, (heading, group) in enumerate(TOOL_GROUPS):
+            ctk.CTkLabel(
                 bar,
-                p,
-                f"{index}.  {cls.title}",
-                lambda k=cls.key: self.select_tool(k),
-                variant="secondary",
-                scale=self.scale,
-                height=46,
+                text=heading.upper(),
+                text_color=p.text_muted,
+                font=(FONT_FAMILY, sized("small", self.scale), "bold"),
                 anchor="w",
-            )
-            button.pack(fill="x", padx=16, pady=4)
-            self.nav_buttons[cls.key] = button
+            ).pack(fill="x", padx=20, pady=(18 if position == 0 else 16, 8))
+
+            for cls in group:
+                index += 1
+                button = AccessibleButton(
+                    bar,
+                    p,
+                    f"{index}.  {cls.title}",
+                    lambda k=cls.key: self.select_tool(k),
+                    variant="secondary",
+                    scale=self.scale,
+                    height=46,
+                    anchor="w",
+                )
+                button.pack(fill="x", padx=16, pady=4)
+                self.nav_buttons[cls.key] = button
 
         ctk.CTkLabel(
             bar,
@@ -1074,7 +1179,7 @@ class ConvertAllApp(_Root):
         window.transient(self)
 
         shortcuts = [
-            ("Ctrl + 1 … 5", "Switch tool"),
+            ("Ctrl + 1 … 4", "Switch tool"),
             ("Ctrl + O", "Add files"),
             ("Ctrl + Shift + O", "Add a folder (searched recursively)"),
             ("Ctrl + Enter", "Start converting"),

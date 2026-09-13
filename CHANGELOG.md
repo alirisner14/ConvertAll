@@ -21,6 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reads the frozen archive's table of contents rather than the filesystem.
 
 ### Changed
+- **Reorganised around intent rather than file type.** The five tools are now
+  four: **Conversion** (you need a specific format), **Compression** (you want
+  a smaller file), and a **Vector art tools** group holding **Tracing (Raster
+  to Vector)** and **Split SVG Layers**. Separate Image conversion and Audio to
+  MP4 tools are gone — both are conversions, so they share one panel whose
+  format dropdown is built from whatever files you load.
+- The format dropdown offers only targets *every* selected file can reach, and
+  says so plainly when a mixed selection has nothing in common, rather than
+  silently skipping files mid-run.
+- "Smart compression" is now just **Compression**. "Smart" implied judgement
+  the code does not have — it dispatches on file type.
 - The **Audio to video** tool is now called **Audio to MP4**. The old name
   described something impossible — the tool wraps an audio file in an MP4
   container so it can be uploaded where only video is accepted.

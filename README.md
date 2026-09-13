@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Code style: ruff](https://img.shields.io/badge/style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-![ConvertAll's image conversion panel](assets/screenshot-images.png)
+![ConvertAll's Conversion panel](assets/screenshot-conversion.png)
 
 </div>
 
@@ -22,13 +22,14 @@ and text you can scale on the fly.
 
 ## Features
 
+Two tools do most of the work — **Conversion** when you need a particular file type, **Compression** when you just want the file smaller. Vector work lives in its own group.
+
 | Tool | What it does |
 | --- | --- |
-| **Image conversion** | Batch `.png → .webp`, `.heic → .png/.jpg`, and `.png/.jpg → .ico` (multi-resolution). Alpha, ICC colour profiles and EXIF rotation survive the trip. |
-| **Audio to MP4** | Converts `.wav` (or MP3/FLAC/M4A…) into a `.mp4`, with either a still background image or a synthesised flat-colour track, for anywhere that only accepts video. |
-| **Raster to vector** | Auto-traces artwork into scalable `.svg`. Two Potrace-based engines: posterised colour layers for artwork, pure black & white for line art. |
-| **SVG splitting** | Splits any layered `.svg` into one standalone file per layer, group or shape. Universal — no assumptions about which editor made the file. |
-| **Smart compression** | Type-aware optimisation across every supported format, tuned to stay visually and audibly lossless. |
+| **Conversion** | For when you need a specific file type. Add images, audio or video and pick the target — the dropdown only offers formats every selected file can actually become. Covers `.png → .webp`, `.heic → .png/.jpg`, `.png/.jpg → .ico`, and `.wav → .mp4` or `.flac`. |
+| **Compression** | For when a smaller file is the goal and the format is not. Each type gets the encoder settings that suit it, tuned to stay visually and audibly lossless. |
+| **Tracing (Raster to Vector)** | Auto-traces artwork into scalable `.svg`. Two Potrace-based engines: posterised colour layers for artwork, pure black & white for line art. |
+| **Split SVG Layers** | Splits any layered `.svg` into one standalone file per layer, group or shape. Universal — no assumptions about which editor made the file. |
 
 ## Accessibility
 
@@ -101,8 +102,8 @@ python -m convertall --contrast maximum --text-scale 1.3
 
 ## Usage
 
-1. Pick a tool in the left sidebar (or `Ctrl + 1` … `Ctrl + 5`).
-2. Add files — drag them onto the list, or use **Add files** / **Add folder**.
+1. Pick a tool in the left sidebar (or `Ctrl + 1` … `Ctrl + 4`). The first two cover most work; the **Vector art tools** group holds tracing and SVG splitting.
+2. Add files — drag them onto the list, or use **Browse** / **Add folder**.
    Folders are searched recursively and filtered to the types that tool accepts.
 3. Adjust the options. The defaults are the safe choice for every tool.
 4. Choose where output goes, or accept the default `ConvertAll Output` folder
@@ -136,7 +137,7 @@ can grow when re-encoded, so it is left alone.
 
 ## Choosing a video codec
 
-Smart compression lets you pick the codec. Measured on screen-recording content
+The Compression tool lets you pick the codec. Measured on screen-recording content
 (a lecture capture, slides with slow movement) against an H.264 source:
 
 | Codec | Size saved | Encode speed | Use it when |
@@ -169,6 +170,7 @@ ConvertAll/
 │   ├── theme.py          # contrast-verified palettes and type scale
 │   ├── jobs.py           # background worker thread + event queue
 │   └── core/             # all processing — GUI-free and unit-tested
+│       ├── convert.py    # what a file can become, and how to get it there
 │       ├── images.py     # PNG/HEIC/JPG/WebP/ICO
 │       ├── media.py      # audio → MP4, A/V re-encoding (FFmpeg)
 │       ├── vectorize.py  # Potrace auto-tracing (colour + mono)
