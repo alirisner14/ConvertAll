@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
+import threading
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -157,22 +159,95 @@ def available_encoders() -> frozenset[str]:
     return frozenset(names)
 
 
-def run_ffmpeg(args: list[str], log=None) -> None:
-    """Run FFmpeg with the given arguments, raising on a non-zero exit."""
-    cmd = [ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-nostdin", "-y", *args]
-    if log:
-        log(" ".join(f'"{a}"' if " " in a else a for a in cmd[1:]))
-    proc = subprocess.run(
+_DURATION = re.compile(r"Duration:\s*(\d+):(\d\d):(\d\d(?:\.\d+)?)")
+
+
+@lru_cache(maxsize=128)
+def probe_duration(path: str) -> float | None:
+    """Length of a media file in seconds, or None if FFmpeg cannot tell.
+
+    Needed to turn FFmpeg's progress output into a percentage. FFmpeg prints
+    the duration to stderr and exits non-zero when given no output file, which
+    is fine - we only want the header.
+    """
+    try:
+        proc = subprocess.run(
+            [ffmpeg_exe(), "-hide_banner", "-i", str(path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=_NO_WINDOW,
+        )
+    except Exception:  # pragma: no cover - depends on environment
+        return None
+    match = _DURATION.search(proc.stderr or "")
+    if not match:
+        return None
+    hours, minutes, seconds = match.groups()
+    total = int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+    return total or None
+
+
+def run_ffmpeg(args: list[str], log=None, on_progress=None, duration: float | None = None) -> None:
+    """Run FFmpeg, raising on a non-zero exit.
+
+    With `on_progress` and a known `duration`, FFmpeg is asked for machine
+    readable progress and the callback receives a 0-1 fraction as it encodes.
+    Without that, a long encode looks identical to a hung one.
+    """
+    cmd = [ffmpeg_exe(), "-hide_banner", "-loglevel", "error", "-nostdin", "-y"]
+    live = bool(on_progress and duration and duration > 0)
+    if live:
+        cmd += ["-progress", "pipe:1", "-nostats"]
+    cmd += args
+
+    if not live:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=_NO_WINDOW,
+        )
+        _raise_if_failed(proc.returncode, proc.stderr or proc.stdout or "")
+        return
+
+    process = subprocess.Popen(
         cmd,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
         encoding="utf-8",
         errors="replace",
         creationflags=_NO_WINDOW,
     )
-    if proc.returncode != 0:
-        tail = (proc.stderr or proc.stdout or "").strip().splitlines()
-        raise RuntimeError(" | ".join(tail[-3:]) or f"FFmpeg exited {proc.returncode}")
+    # Drain stderr on a thread: reading stdout to completion first can deadlock
+    # if FFmpeg fills the error pipe while we are not listening.
+    errors: list[str] = []
+    drain = threading.Thread(target=lambda: errors.append(process.stderr.read()), daemon=True)
+    drain.start()
+
+    for line in process.stdout:
+        if line.startswith("out_time_us="):
+            try:
+                microseconds = int(line.split("=", 1)[1])
+            except ValueError:
+                continue
+            on_progress(max(0.0, min(1.0, microseconds / 1_000_000 / duration)))
+
+    process.wait()
+    drain.join(timeout=5)
+    on_progress(1.0)
+    _raise_if_failed(process.returncode, "".join(errors))
+
+
+def _raise_if_failed(code: int, output: str) -> None:
+    if code == 0:
+        return
+    tail = (output or "").strip().splitlines()
+    raise RuntimeError(" | ".join(tail[-3:]) or f"FFmpeg exited {code}")
 
 
 def collect_files(paths, exts: set[str] | None = None, recursive: bool = True) -> list[Path]:

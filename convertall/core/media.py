@@ -8,6 +8,7 @@ from .common import (
     TaskResult,
     available_encoders,
     ensure_dir,
+    probe_duration,
     run_ffmpeg,
     size_of,
     unique_path,
@@ -91,6 +92,7 @@ def audio_to_mp4(
     preset: str = "balanced",
     background_color: str = "black",
     log=None,
+    progress=None,
 ) -> TaskResult:
     """Convert a .wav (or any audio file) into a playable .mp4.
 
@@ -147,7 +149,7 @@ def audio_to_mp4(
         "+faststart",
         str(dst),
     ]
-    run_ffmpeg(args, log=log)
+    run_ffmpeg(args, log=log, on_progress=progress, duration=probe_duration(str(src)))
 
     if log:
         log(f"  {src.name} -> {dst.name} ({note}, AAC {abr})")
@@ -166,6 +168,7 @@ def compress_video(
     preset: str = "balanced",
     codec: str = "h264",
     log=None,
+    progress=None,
 ) -> TaskResult:
     """Re-encode a video at visually-lossless settings in the chosen codec."""
     src = Path(src)
@@ -179,12 +182,20 @@ def compress_video(
     # Copying the audio stream is both faster and better than re-encoding it:
     # the source is usually already lossy, and a second pass through AAC only
     # loses quality. Fall back when the stream cannot live in MP4 (e.g. PCM).
+    duration = probe_duration(str(src))
     try:
-        run_ffmpeg([*base, "-c:a", "copy", str(dst)], log=log)
+        run_ffmpeg(
+            [*base, "-c:a", "copy", str(dst)], log=log, on_progress=progress, duration=duration
+        )
         audio = "audio copied"
     except RuntimeError:
         dst.unlink(missing_ok=True)
-        run_ffmpeg([*base, "-c:a", "aac", "-b:a", abr, str(dst)], log=log)
+        run_ffmpeg(
+            [*base, "-c:a", "aac", "-b:a", abr, str(dst)],
+            log=log,
+            on_progress=progress,
+            duration=duration,
+        )
         audio = f"AAC {abr}"
 
     return TaskResult(
@@ -196,12 +207,17 @@ def compress_video(
     )
 
 
-def compress_audio_lossless(src: Path, out_dir: Path, log=None) -> TaskResult:
+def compress_audio_lossless(src: Path, out_dir: Path, log=None, progress=None) -> TaskResult:
     """WAV/AIFF -> FLAC. Bit-for-bit identical audio, typically ~50% smaller."""
     src = Path(src)
     ensure_dir(out_dir)
     dst = unique_path(Path(out_dir) / f"{src.stem}.flac")
-    run_ffmpeg(["-i", str(src), "-c:a", "flac", "-compression_level", "8", str(dst)], log=log)
+    run_ffmpeg(
+        ["-i", str(src), "-c:a", "flac", "-compression_level", "8", str(dst)],
+        log=log,
+        on_progress=progress,
+        duration=probe_duration(str(src)),
+    )
     return TaskResult(
         source=src,
         output=dst,

@@ -89,6 +89,7 @@ def convert_file(
     background_color: str = "black",
     video_codec: str = "h264",
     log=None,
+    progress=None,
 ) -> TaskResult:
     """Convert one file into `target`, routing to whichever pipeline fits."""
     src = Path(src)
@@ -105,7 +106,7 @@ def convert_file(
         )
 
     if target == "flac":
-        return compress_audio_lossless(src, out_dir, log=log)
+        return compress_audio_lossless(src, out_dir, log=log, progress=progress)
 
     if target == "mp4":
         if kind_of(src) == "audio":
@@ -117,7 +118,10 @@ def convert_file(
                 preset=preset,
                 background_color=background_color,
                 log=log,
+                progress=progress,
             )
-        return compress_video(src, out_dir, preset=preset, codec=video_codec, log=log)
+        return compress_video(
+            src, out_dir, preset=preset, codec=video_codec, log=log, progress=progress
+        )
 
     raise RuntimeError(f"Unsupported target format: {target}")

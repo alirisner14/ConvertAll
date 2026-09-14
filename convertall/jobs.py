@@ -6,8 +6,10 @@ handed back through a queue that the GUI drains on its own event loop.
 
 from __future__ import annotations
 
+import inspect
 import queue
 import threading
+import time
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -32,6 +34,14 @@ class JobSummary:
         if not self.bytes_in or not self.bytes_out:
             return 0.0
         return (1.0 - self.bytes_out / self.bytes_in) * 100.0
+
+
+def _accepts_progress(worker: Callable) -> bool:
+    """Only some pipelines can report sub-file progress; FFmpeg-backed ones can."""
+    try:
+        return "progress" in inspect.signature(worker).parameters
+    except (TypeError, ValueError):  # pragma: no cover - builtins and partials
+        return False
 
 
 class JobRunner:
@@ -68,21 +78,39 @@ class JobRunner:
 
     def _run(self, files: list[Path], worker: Callable[..., TaskResult], kwargs: dict) -> None:
         summary = JobSummary(total=len(files))
-        self._emit("start", len(files))
-        log = lambda text: self._emit("log", text)  # noqa: E731
+        total = len(files)
+        started = time.monotonic()
+        self._emit("start", total)
+        log = lambda text: self._emit("detail", text)  # noqa: E731
+        wants_progress = _accepts_progress(worker)
+
+        def tick(fraction: float, index: int) -> None:
+            """Overall completion, plus what it implies about time remaining."""
+            overall = min(1.0, max(0.0, (index - 1 + fraction) / total))
+            elapsed = time.monotonic() - started
+            # Only guess once there is enough signal to be worth showing.
+            remaining = (elapsed / overall - elapsed) if overall > 0.02 else None
+            self._emit("tick", (overall, elapsed, remaining))
 
         for index, path in enumerate(files, start=1):
             if self._cancel.is_set():
                 summary.cancelled = True
-                self._emit("log", "Cancelled by user.")
+                self._emit("cancelled", None)
                 break
 
-            self._emit("progress", (index, len(files), Path(path).name))
+            self._emit("file_start", (index, total, Path(path).name))
+            tick(0.0, index)
+
+            call = dict(kwargs)
+            if wants_progress:
+                call["progress"] = lambda fraction, i=index: tick(fraction, i)
+
             try:
-                result = worker(Path(path), log=log, **kwargs)
+                result = worker(Path(path), log=log, **call)
             except Exception as exc:
                 result = TaskResult(source=Path(path), ok=False, message=str(exc))
-                self._emit("trace", traceback.format_exc())
+                self._emit("detail", traceback.format_exc())
+            tick(1.0, index)
 
             if result.ok:
                 summary.succeeded += 1

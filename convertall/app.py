@@ -36,6 +36,7 @@ from .core.common import (
 )
 from .core.compress import smart_compress
 from .core.convert import convert_file
+from .core.estimate import estimate_label
 from .core.svgsplit import split_svg
 from .core.vectorize import trace_image
 from .jobs import JobRunner, JobSummary
@@ -88,6 +89,16 @@ def _open_folder(path: Path) -> None:
         subprocess.run(["xdg-open", str(path)], check=False)
 
 
+def _clock(seconds: float | None) -> str:
+    """m:ss, or h:mm:ss once a job runs long enough to need it."""
+    if seconds is None:
+        return "—"
+    seconds = max(0, int(seconds))
+    hours, rest = divmod(seconds, 3600)
+    minutes, secs = divmod(rest, 60)
+    return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
+
+
 def _filetypes(exts: set[str], description: str) -> list[tuple[str, str]]:
     pattern = " ".join(f"*{e}" for e in sorted(exts))
     return [(description, pattern), ("All files", "*.*")]
@@ -109,6 +120,8 @@ class ToolPanel(ctk.CTkScrollableFrame):
     drop_hint = "any supported file"
     action_text = "Convert"
     dialog_name = "Supported files"
+    gerund = "Converting"
+    past_tense = "Converted"
 
     def __init__(self, master, app: ConvertAllApp):
         palette, scale = app.palette, app.scale
@@ -154,7 +167,7 @@ class ToolPanel(ctk.CTkScrollableFrame):
 
         self.files = FileList(card, self.palette, scale=self.scale, height=8)
         self.files.pack(fill="both", expand=True, padx=16, pady=(0, 8))
-        self._enable_drop(self.files.listbox)
+        self._enable_drop(self.files.drop_target)
 
         for text, command, variant in (
             ("Browse…", self.add_files, "secondary"),
@@ -176,6 +189,7 @@ class ToolPanel(ctk.CTkScrollableFrame):
             card, self.palette, "No files selected", kind="small", scale=self.scale, muted=True
         )
         self.count_label.pack(fill="x", padx=16, pady=(0, 14))
+        self.files.set_estimator(self.estimate_for)
 
     def _enable_drop(self, widget) -> None:
         if not DND_AVAILABLE:
@@ -225,6 +239,14 @@ class ToolPanel(ctk.CTkScrollableFrame):
         if count and not self.output_dir:
             self.set_output(default_output_dir([Path(p) for p in self.files.paths]))
         self.on_files_changed()
+
+    def estimate_for(self, path: Path) -> str:
+        """What this panel's settings would likely produce. Panels override this."""
+        return estimate_label(path)
+
+    def refresh_estimates(self) -> None:
+        with contextlib.suppress(Exception):
+            self.files.refresh_estimates()
 
     def on_files_changed(self) -> None:
         """Hook for panels whose options depend on which files are loaded."""
@@ -633,6 +655,8 @@ class TracePanel(ToolPanel):
     file_label = "Files"
     drop_hint = "any image to trace"
     action_text = "Trace to SVG"
+    gerund = "Tracing"
+    past_tense = "Traced"
     dialog_name = "Images"
 
     def build_options(self, parent) -> None:
@@ -723,6 +747,8 @@ class SplitPanel(ToolPanel):
     file_label = "Files"
     drop_hint = "any .svg file"
     action_text = "Split files"
+    gerund = "Splitting"
+    past_tense = "Split"
     dialog_name = "SVG files"
 
     def build_options(self, parent) -> None:
@@ -770,6 +796,8 @@ class CompressionPanel(ToolPanel):
     file_label = "Files"
     drop_hint = "any image, audio, video, or SVG file"
     action_text = "Compress"
+    gerund = "Compressing"
+    past_tense = "Compressed"
     dialog_name = "Media files"
 
     def build_options(self, parent) -> None:
@@ -849,6 +877,8 @@ class ConvertAllApp(_Root):
         self.palette: Palette = PALETTES[palette_key]
         self.scale = scale
         self.runner = JobRunner()
+        self._details: list[str] = []
+        self._job_words = ("Converting", "Converted", "Convert")
         self.active_key = PANELS[0].key
         self._panel_state: dict[str, dict] = {}
 
@@ -1001,6 +1031,29 @@ class ConvertAllApp(_Root):
             font=(FONT_FAMILY, sized("body", self.scale), "bold"),
         )
         self.status.grid(row=0, column=0, sticky="w")
+
+        self.timing = ctk.CTkLabel(
+            top,
+            text="",
+            text_color=p.text_muted,
+            anchor="e",
+            font=(FONT_FAMILY, sized("small", self.scale)),
+        )
+        self.timing.grid(row=0, column=1, sticky="e", padx=(0, 12))
+
+        self.error_button = AccessibleButton(
+            top,
+            p,
+            "View error",
+            self.show_error,
+            variant="danger",
+            scale=self.scale,
+            height=34,
+            width=120,
+        )
+        self.error_button.grid(row=0, column=2, sticky="e", padx=(0, 8))
+        self.error_button.grid_remove()
+
         AccessibleButton(
             top,
             p,
@@ -1010,7 +1063,7 @@ class ConvertAllApp(_Root):
             scale=self.scale,
             height=34,
             width=110,
-        ).grid(row=0, column=1, sticky="e")
+        ).grid(row=0, column=3, sticky="e")
 
         self.progress = ctk.CTkProgressBar(
             card,
@@ -1025,6 +1078,7 @@ class ConvertAllApp(_Root):
         self.progress.pack(fill="x", padx=16, pady=(0, 8))
 
         self.log = LogView(card, p, scale=self.scale, height=5)
+        self.log.on_link_click(self.show_error)
         self.log.pack(fill="x", padx=16, pady=(0, 12))
         self.log_line(
             "ConvertAll ready. Choose a tool on the left, add files, then press Convert.", "head"
@@ -1058,8 +1112,8 @@ class ConvertAllApp(_Root):
             button.set_active(panel_key == key)
         self.set_status(f"{self.panels[key].title} - ready.")
 
-    def log_line(self, text: str, tag: str | None = None) -> None:
-        self.log.write(text, tag)
+    def log_line(self, text: str, tag: str | None = None, link: bool = False) -> None:
+        self.log.write(text, tag, link=link)
 
     def _clear_log(self) -> None:
         self.log.clear()
@@ -1073,9 +1127,14 @@ class ConvertAllApp(_Root):
         if self.runner.busy:
             self.log_line("A job is already running.", "warn")
             return
+        panel = self.current_panel()
+        self._job_words = (panel.gerund, panel.past_tense, panel.action_text)
+        self._details = [f"{title}: {len(files)} file(s) -> {kwargs.get('out_dir')}"]
+        self.error_button.grid_remove()
         self.log_line("")
         self.log_line(f"{title}: {len(files)} file(s) -> {kwargs.get('out_dir')}", "head")
         self.progress.set(0)
+        self.timing.configure(text="")
         self.current_panel().set_running(True)
         self.runner.start(files, worker, **kwargs)
 
@@ -1094,17 +1153,35 @@ class ConvertAllApp(_Root):
         self.after(80, self._drain_events)
 
     def _handle_event(self, kind: str, payload) -> None:
-        if kind == "progress":
+        gerund, past_tense, action = self._job_words
+        if kind == "file_start":
             index, total, name = payload
-            self.progress.set((index - 1) / max(total, 1))
-            self.set_status(f"[{index}/{total}] {name}")
-        elif kind == "result":
-            self.log_line("  " + payload.summary(), "ok" if payload.ok else "bad")
-        elif kind == "log":
+            self.log_line(f"{gerund} file {index} of {total}…")
+            self.set_status(f"{gerund} {name}")
+        elif kind == "tick":
+            overall, elapsed, remaining = payload
+            self.progress.set(overall)
+            self.timing.configure(
+                text=f"Time elapsed: {_clock(elapsed)}    Est. time remaining: {_clock(remaining)}"
+            )
+        elif kind == "detail":
+            # Encoder chatter and tracebacks are kept, not shown. The log stays
+            # readable, and "View error" reveals all of it when something breaks.
             if payload:
-                self.log_line("  " + str(payload))
-        elif kind == "trace":
-            pass  # full traceback stays available for debugging if needed
+                self._details.append(str(payload).rstrip())
+        elif kind == "result":
+            if payload.ok:
+                self.log_line(f"File was {past_tense} successfully!", "ok")
+            else:
+                self._details.append(f"{payload.source.name}: {payload.message}")
+                self.log_line(
+                    f"File {action} has failed. Click here to view the error.",
+                    "bad",
+                    link=True,
+                )
+                self.error_button.grid()
+        elif kind == "cancelled":
+            self.log_line("Cancelled.", "warn")
         elif kind == "done":
             self._finish(payload)
 
@@ -1171,6 +1248,25 @@ class ConvertAllApp(_Root):
         self.select_tool(active)
         self.geometry(geometry)
         self.log_line(f"Display: {self.palette.label}, text size {int(self.scale * 100)}%.", "head")
+
+    def show_error(self) -> None:
+        """Everything the job recorded, including the raw encoder output."""
+        p = self.palette
+        window = ctk.CTkToplevel(self)
+        window.title("ConvertAll - error details")
+        window.geometry("880x520")
+        window.configure(fg_color=p.bg)
+        window.transient(self)
+
+        view = LogView(window, p, scale=self.scale, height=20)
+        view.pack(fill="both", expand=True, padx=18, pady=(18, 10))
+        for line in self._details or ["Nothing was recorded for this job."]:
+            view.write(line)
+
+        AccessibleButton(
+            window, p, "Close", window.destroy, variant="primary", scale=self.scale, height=44
+        ).pack(pady=(0, 18))
+        window.after(120, window.focus_force)
 
     def show_help(self) -> None:
         p = self.palette

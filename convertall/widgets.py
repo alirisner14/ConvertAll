@@ -17,9 +17,12 @@ from __future__ import annotations
 import contextlib
 import tkinter as tk
 from collections.abc import Callable
+from pathlib import Path
+from tkinter import ttk
 
 import customtkinter as ctk
 
+from .core.common import human, size_of
 from .theme import FONT_FAMILY, MONO_FAMILY, Palette, sized
 
 CORNER = 8
@@ -212,49 +215,105 @@ class Card(ctk.CTkFrame):
 
 
 class FileList(ctk.CTkFrame):
-    """A native Listbox - it gives real keyboard navigation and screen-reader
-    support that a stack of custom frames cannot."""
+    """A real table: name, original size, estimated size after.
+
+    ttk.Treeview rather than a hand-rolled widget - it gives resizable column
+    headings, keyboard navigation and screen-reader support for free, none of
+    which a stack of custom frames would.
+    """
+
+    COLUMNS = (("size", "Size", 110), ("estimate", "Est. after", 110))
 
     def __init__(self, master, palette: Palette, scale: float = 1.0, height: int = 10):
         super().__init__(master, fg_color="transparent")
         self.palette = palette
         self.paths: list[str] = []
+        self._estimator = None
 
-        self.listbox = tk.Listbox(
+        self._style_treeview(palette, scale)
+        self.tree = ttk.Treeview(
             self,
-            height=height,
-            activestyle="none",
+            columns=[c[0] for c in self.COLUMNS],
             selectmode="extended",
-            bg=palette.surface_alt,
-            fg=palette.text,
-            selectbackground=palette.accent,
-            selectforeground=palette.on_accent,
-            highlightthickness=2,
-            highlightbackground=palette.border,
-            highlightcolor=palette.focus,
-            borderwidth=0,
-            relief="flat",
-            font=(MONO_FAMILY, sized("mono", scale)),
-            exportselection=False,
+            height=height,
+            style="ConvertAll.Treeview",
         )
+        self.tree.heading("#0", text="File", anchor="w")
+        self.tree.column("#0", width=430, minwidth=180, stretch=True, anchor="w")
+        for key, title, width in self.COLUMNS:
+            self.tree.heading(key, text=title, anchor="e")
+            self.tree.column(key, width=width, minwidth=70, stretch=False, anchor="e")
+
         scrollbar = ctk.CTkScrollbar(
             self,
-            command=self.listbox.yview,
+            command=self.tree.yview,
             button_color=palette.border_strong,
             button_hover_color=palette.accent,
             fg_color=palette.surface,
         )
-        self.listbox.configure(yscrollcommand=scrollbar.set)
-        self.listbox.pack(side="left", fill="both", expand=True)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        self.tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y", padx=(6, 0))
-
-        self.listbox.bind("<Delete>", lambda e: self.remove_selected())
-        self.listbox.bind("<BackSpace>", lambda e: self.remove_selected())
-
-        # A CTkScrollbar asks for 200px by default, which would drive this
-        # frame's height instead of the Listbox doing it. Ask for nothing and
-        # let fill="y" stretch it, so `height` really means "this many rows".
         scrollbar.configure(height=1)
+
+        self.tree.bind("<Delete>", lambda e: self.remove_selected())
+        self.tree.bind("<BackSpace>", lambda e: self.remove_selected())
+
+    def _style_treeview(self, palette: Palette, scale: float) -> None:
+        style = ttk.Style()
+        # "clam" is the only built-in theme that honours these colour options on
+        # Windows; the native theme ignores them and renders light grey.
+        with contextlib.suppress(Exception):
+            style.theme_use("clam")
+        row_height = max(22, int(sized("body", scale) * 1.9))
+        style.configure(
+            "ConvertAll.Treeview",
+            background=palette.surface_alt,
+            fieldbackground=palette.surface_alt,
+            foreground=palette.text,
+            borderwidth=0,
+            rowheight=row_height,
+            font=(FONT_FAMILY, sized("small", scale)),
+        )
+        style.configure(
+            "ConvertAll.Treeview.Heading",
+            background=palette.surface,
+            foreground=palette.text_muted,
+            relief="flat",
+            borderwidth=1,
+            font=(FONT_FAMILY, sized("small", scale), "bold"),
+        )
+        style.map(
+            "ConvertAll.Treeview.Heading",
+            background=[("active", palette.surface_alt)],
+            foreground=[("active", palette.text)],
+        )
+        style.map(
+            "ConvertAll.Treeview",
+            background=[("selected", palette.accent)],
+            foreground=[("selected", palette.on_accent)],
+        )
+
+    @property
+    def drop_target(self):
+        return self.tree
+
+    def set_estimator(self, estimator) -> None:
+        """Called by the panel whenever an option changes the likely output."""
+        self._estimator = estimator
+        self.refresh_estimates()
+
+    def refresh_estimates(self) -> None:
+        for item, path in zip(self.tree.get_children(), self.paths, strict=False):
+            self.tree.set(item, "estimate", self._estimate(path))
+
+    def _estimate(self, path: str) -> str:
+        if self._estimator is None:
+            return "—"
+        try:
+            return self._estimator(Path(path))
+        except Exception:
+            return "—"
 
     def add(self, paths) -> int:
         known = {p.lower() for p in self.paths}
@@ -265,17 +324,23 @@ class FileList(ctk.CTkFrame):
                 continue
             known.add(text.lower())
             self.paths.append(text)
-            self.listbox.insert("end", text)
+            self.tree.insert(
+                "",
+                "end",
+                text=Path(text).name,
+                values=(human(size_of(Path(text))), self._estimate(text)),
+            )
             added += 1
         return added
 
     def remove_selected(self) -> None:
-        for index in sorted(self.listbox.curselection(), reverse=True):
-            self.listbox.delete(index)
+        for item in self.tree.selection():
+            index = self.tree.index(item)
+            self.tree.delete(item)
             del self.paths[index]
 
     def clear(self) -> None:
-        self.listbox.delete(0, "end")
+        self.tree.delete(*self.tree.get_children())
         self.paths.clear()
 
     def __len__(self) -> int:
@@ -330,11 +395,19 @@ class LogView(ctk.CTkFrame):
         # frame, so `height` really means "this many lines".
         scrollbar.configure(height=1)
 
-    def write(self, line: str, tag: str | None = None) -> None:
+    def write(self, line: str, tag: str | None = None, link: bool = False) -> None:
         self.text.configure(state="normal")
-        self.text.insert("end", line + "\n", tag or ())
+        tags = tuple(t for t in (tag, "link" if link else None) if t)
+        self.text.insert("end", line + "\n", tags)
         self.text.see("end")
         self.text.configure(state="disabled")
+
+    def on_link_click(self, command) -> None:
+        """Make lines written with link=True clickable, as the log promises."""
+        self.text.tag_configure("link", underline=True)
+        self.text.tag_bind("link", "<Button-1>", lambda _e: command())
+        self.text.tag_bind("link", "<Enter>", lambda _e: self.text.configure(cursor="hand2"))
+        self.text.tag_bind("link", "<Leave>", lambda _e: self.text.configure(cursor=""))
 
     def clear(self) -> None:
         self.text.configure(state="normal")
