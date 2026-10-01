@@ -8,7 +8,7 @@ import subprocess
 import pytest
 from PIL import Image
 
-from convertall.core.common import collect_files, human, kind_of, unique_path
+from convertall.core.common import collect_files, human, kind_of, size_change, unique_path
 from convertall.core.compress import minify_svg, smart_compress
 from convertall.core.images import convert_image
 from convertall.core.svgsplit import split_svg
@@ -487,3 +487,31 @@ def test_wav_compresses_to_flac(tmp_path):
     )
     result = compress_audio_lossless(wav, tmp_path / "out")
     assert result.ok and result.bytes_out < result.bytes_in
+
+
+# --- size_change ------------------------------------------------------------ #
+# This used to print a signed percentage, so an 88% saving read as "+88%" -
+# which looks like the file got bigger. Words cannot be read the wrong way.
+
+
+@pytest.mark.parametrize(
+    ("bytes_in", "bytes_out", "expected"),
+    [
+        (1000, 120, "88% smaller"),
+        (1000, 500, "50% smaller"),
+        (1000, 1000, "about the same size"),
+        (1000, 1002, "about the same size"),
+        (1000, 1500, "50% larger"),
+        (120, 1000, "733% larger"),
+        (0, 500, ""),
+        (500, 0, ""),
+    ],
+)
+def test_size_change_is_unambiguous(bytes_in, bytes_out, expected):
+    assert size_change(bytes_in, bytes_out) == expected
+
+
+def test_size_change_never_shows_a_sign():
+    """A leading + or - is exactly the ambiguity this replaced."""
+    for pair in ((1000, 120), (120, 1000), (1000, 1000)):
+        assert not any(ch in size_change(*pair) for ch in "+-")

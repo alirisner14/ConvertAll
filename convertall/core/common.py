@@ -46,10 +46,8 @@ class TaskResult:
     extra_outputs: list[Path] = field(default_factory=list)
 
     @property
-    def saved_pct(self) -> float:
-        if not self.bytes_in or not self.bytes_out:
-            return 0.0
-        return (1.0 - self.bytes_out / self.bytes_in) * 100.0
+    def size_change(self) -> str:
+        return size_change(self.bytes_in, self.bytes_out)
 
     def summary(self) -> str:
         if not self.ok:
@@ -60,9 +58,7 @@ class TaskResult:
         if self.extra_outputs:
             bits.append(f"(+{len(self.extra_outputs)} more)")
         if self.bytes_in and self.bytes_out:
-            bits.append(
-                f"[{human(self.bytes_in)} -> {human(self.bytes_out)}, {self.saved_pct:+.0f}%]"
-            )
+            bits.append(f"[{human(self.bytes_in)} -> {human(self.bytes_out)}, {self.size_change}]")
         if self.message:
             bits.append(f"- {self.message}")
         return "  ".join(bits)
@@ -74,6 +70,20 @@ def human(num: float) -> str:
             return f"{num:.0f} {unit}" if unit == "B" else f"{num:.1f} {unit}"
         num /= 1024.0
     return f"{num:.1f} GB"
+
+
+def size_change(bytes_in: int, bytes_out: int) -> str:
+    """Say in words whether the output got smaller.
+
+    A signed percentage was ambiguous in the worst way: a saving read as
+    "+88%", which looks like the file grew. Words cannot be misread.
+    """
+    if not bytes_in or not bytes_out:
+        return ""
+    percent = round((1.0 - bytes_out / bytes_in) * 100.0)
+    if percent == 0:
+        return "about the same size"
+    return f"{abs(percent)}% {'smaller' if percent > 0 else 'larger'}"
 
 
 def kind_of(path: Path) -> str:

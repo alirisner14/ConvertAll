@@ -29,12 +29,6 @@ class JobSummary:
     bytes_out: int = 0
     outputs: list[Path] = field(default_factory=list)
 
-    @property
-    def saved_pct(self) -> float:
-        if not self.bytes_in or not self.bytes_out:
-            return 0.0
-        return (1.0 - self.bytes_out / self.bytes_in) * 100.0
-
 
 def _accepts_progress(worker: Callable) -> bool:
     """Only some pipelines can report sub-file progress; FFmpeg-backed ones can."""

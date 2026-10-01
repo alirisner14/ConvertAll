@@ -33,6 +33,7 @@ from .core.common import (
     default_output_dir,
     human,
     kind_of,
+    size_change,
 )
 from .core.compress import smart_compress
 from .core.convert import convert_file
@@ -1328,7 +1329,7 @@ class ConvertAllApp(_Root):
         if summary.bytes_in and summary.bytes_out:
             parts.append(
                 f"{human(summary.bytes_in)} -> {human(summary.bytes_out)} "
-                f"({summary.saved_pct:+.0f}%)"
+                f"({size_change(summary.bytes_in, summary.bytes_out)})"
             )
         message = "Done: " + ", ".join(parts) + "."
         self.set_status(message)

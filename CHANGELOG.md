@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `entry()` in `widgets.py`: a text field styled and focus-ringed to match the
   option menus.
 
+### Changed
+- The completion line says `(88% smaller)` instead of `(+88%)`. A signed
+  percentage was ambiguous in the worst direction: a saving looked like growth.
+  `saved_pct` is replaced by `size_change()`, which also reports `% larger` and
+  `about the same size` rather than rounding to a meaningless `+0%`.
+
 ### Fixed
 - **The "Est. after" column ignored what you had chosen.** It was costing every
   file against the default pipeline, so a WAV headed for MP3 was priced as a
