@@ -91,3 +91,40 @@ def test_convert_file_honours_max_dimension(tmp_path):
 
     with Image.open(result.output) as img:
         assert max(img.size) == 50
+
+
+# --- HEIC ------------------------------------------------------------------- #
+# iPhone photos arrive as HEIC and almost nothing outside Apple opens them, so
+# PNG/JPG out of HEIC is a headline case rather than an edge one.
+
+heif = pytest.importorskip("pillow_heif", reason="pillow-heif is not installed")
+
+
+@pytest.fixture
+def heic(tmp_path):
+    heif.register_heif_opener()
+    img = Image.new("RGB", (120, 80))
+    img.putdata([(x * 2 % 256, y * 3 % 256, 90) for y in range(80) for x in range(120)])
+    path = tmp_path / "IMG_0042.heic"
+    img.save(path, format="HEIF")
+    return path
+
+
+def test_heic_offers_png_and_jpg(heic):
+    offered = targets_for_file(heic)
+    assert "png" in offered and "jpg" in offered
+
+
+@pytest.mark.parametrize("target", ["png", "jpg", "webp"])
+def test_heic_converts(tmp_path, heic, target):
+    result = convert_file(heic, tmp_path / "out", target=target)
+    assert result.ok
+    assert result.output.suffix == f".{target}"
+    with Image.open(result.output) as out:
+        assert out.size == (120, 80)
+
+
+def test_heic_honours_max_dimension(tmp_path, heic):
+    result = convert_file(heic, tmp_path / "out", target="png", max_dimension=60)
+    with Image.open(result.output) as out:
+        assert max(out.size) == 60

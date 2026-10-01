@@ -55,11 +55,20 @@ from .widgets import (
     FileList,
     LogView,
     checkbox,
+    entry,
     label,
     option_menu,
 )
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
+
+# Resize choices that are not a pixel count. Kept as constants because both the
+# menu and the code that reads it have to agree exactly.
+KEEP_SIZE = "Keep original size"
+CUSTOM_SIZE = "Custom..."
+# Anything smaller is not an image, and ICO caps at 256 anyway; the upper bound
+# is well past 8K, so it only stops typos like a stray extra digit.
+MIN_CUSTOM_PX, MAX_CUSTOM_PX = 16, 20000
 
 # Optional drag-and-drop. The app works fine without it.
 try:  # pragma: no cover - depends on environment
@@ -420,7 +429,8 @@ class ConversionPanel(ToolPanel):
         self.background: Path | None = None
         self.target = tk.StringVar(value="")
         self.preset = tk.StringVar(value=images_core.PRESET_LABELS["lossless"])
-        self.resize = tk.StringVar(value="Keep original size")
+        self.resize = tk.StringVar(value=KEEP_SIZE)
+        self.custom_px = tk.StringVar(value="")
         self.resolution = tk.StringVar(value=list(media_core.RESOLUTIONS)[0])
         self.bg_colour = tk.StringVar(value="Black")
         self.video_codec = tk.StringVar(value=media_core.VIDEO_CODECS["h264"])
@@ -457,14 +467,27 @@ class ConversionPanel(ToolPanel):
             width=240,
         ).pack(side="left")
 
-        row = self.row(parent, "Maximum size", name="resize")
+        row = self.row(
+            parent,
+            "Maximum size",
+            "The longest edge. The aspect ratio is kept, and images already "
+            "smaller than this are left alone.",
+            name="resize",
+        )
         option_menu(
             row,
             self.palette,
-            ["Keep original size", "4096 px", "2048 px", "1024 px", "512 px"],
+            [KEEP_SIZE, "4096 px", "2048 px", "1024 px", "512 px", CUSTOM_SIZE],
             self.resize,
             self.scale,
+            command=lambda _v: self._toggle_custom_size(),
         ).pack(side="left")
+        self.custom_entry = entry(
+            row, self.palette, self.custom_px, self.scale, width=110, placeholder="px"
+        )
+        self.custom_hint = label(
+            row, self.palette, "pixels", kind="small", scale=self.scale, muted=True
+        )
 
         row = self.row(
             parent,
@@ -590,6 +613,8 @@ class ConversionPanel(ToolPanel):
             if row is not None and name in visible:
                 row.pack(fill="x", padx=16, pady=(0, 12))
 
+        self._toggle_custom_size()
+
         if target:
             self.target_hint.configure(text=convert_core.TARGET_HINTS.get(target, ""))
         elif self.files.paths:
@@ -599,6 +624,40 @@ class ConversionPanel(ToolPanel):
             )
         else:
             self.target_hint.configure(text="Add files to see what they can become.")
+
+    def _toggle_custom_size(self) -> None:
+        """Show the pixel field only when the menu asks for one."""
+        if self.resize.get() == CUSTOM_SIZE:
+            self.custom_entry.pack(side="left", padx=(10, 6))
+            self.custom_hint.pack(side="left")
+        else:
+            self.custom_entry.pack_forget()
+            self.custom_hint.pack_forget()
+
+    def _max_dimension(self) -> int | None:
+        """The chosen longest edge, or None to keep the original size.
+
+        Raises ValueError with a message meant for the user - a silent fallback
+        to "keep original" would quietly ignore what they typed.
+        """
+        chosen = self.resize.get()
+        if chosen == KEEP_SIZE:
+            return None
+        if chosen != CUSTOM_SIZE:
+            return int(chosen.split()[0])
+
+        typed = self.custom_px.get().strip().lower().removesuffix("px").strip()
+        if not typed:
+            raise ValueError("Enter a custom size in pixels, or choose a size from the list.")
+        try:
+            pixels = int(typed)
+        except ValueError:
+            raise ValueError(f"'{self.custom_px.get()}' is not a number of pixels.") from None
+        if not MIN_CUSTOM_PX <= pixels <= MAX_CUSTOM_PX:
+            raise ValueError(
+                f"A custom size has to be between {MIN_CUSTOM_PX} and {MAX_CUSTOM_PX} pixels."
+            )
+        return pixels
 
     def _pick_background(self) -> None:
         chosen = filedialog.askopenfilename(
@@ -623,6 +682,12 @@ class ConversionPanel(ToolPanel):
                 "Convert them in separate batches - images together, audio together.",
             )
             return
+        try:
+            self._max_dimension()
+        except ValueError as exc:
+            self.app.log_line(str(exc), "error")
+            messagebox.showinfo("ConvertAll", str(exc))
+            return
         super().run()
 
     def make_job(self):
@@ -630,12 +695,11 @@ class ConversionPanel(ToolPanel):
         codec_key = next(
             k for k, v in media_core.VIDEO_CODECS.items() if v == self.video_codec.get()
         )
-        chosen = self.resize.get()
         colours = {"Black": "black", "White": "white", "Dark grey": "0x1E2936"}
         return convert_file, {
             "target": self._current_target() or "",
             "preset": preset_key,
-            "max_dimension": None if chosen.startswith("Keep") else int(chosen.split()[0]),
+            "max_dimension": self._max_dimension(),
             "background": self.background,
             "resolution": media_core.RESOLUTIONS[self.resolution.get()],
             "background_color": colours[self.bg_colour.get()],

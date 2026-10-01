@@ -497,3 +497,32 @@ def checkbox(master, palette: Palette, text: str, variable, scale: float = 1.0) 
     box.bind("<Return>", lambda e: box.toggle(), add="+")
     box.bind("<space>", lambda e: box.toggle(), add="+")
     return box
+
+
+def entry(
+    master,
+    palette: Palette,
+    variable,
+    scale: float = 1.0,
+    width: int = 110,
+    placeholder: str = "",
+) -> ctk.CTkEntry:
+    """A text field styled like the option menus, with the same focus ring."""
+    box = ctk.CTkEntry(
+        master,
+        textvariable=variable,
+        width=width,
+        height=38,
+        corner_radius=CORNER,
+        fg_color=palette.surface_alt,
+        border_color=palette.border_strong,
+        border_width=2,
+        text_color=palette.text,
+        placeholder_text=placeholder,
+        placeholder_text_color=palette.text_muted,
+        font=(FONT_FAMILY, sized("body", scale)),
+    )
+    _force(box, takefocus=1)
+    box.bind("<FocusIn>", lambda e: box.configure(border_color=palette.focus), add="+")
+    box.bind("<FocusOut>", lambda e: box.configure(border_color=palette.border_strong), add="+")
+    return box

@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+- **A custom maximum size.** The resize menu had five fixed choices; it now
+  also offers `Custom...`, which reveals a pixel field. The value is the longest
+  edge, the aspect ratio is kept, and anything already smaller is left alone —
+  the same rule the fixed sizes follow. A blank or unreadable entry stops the
+  run and says why, rather than falling back to "keep original size" and
+  silently producing files nobody asked for.
+- HEIC and HEIF are covered by tests end to end — offered targets, PNG/JPG/WebP
+  output, and resizing — against a real HEIF file rather than a stand-in. The
+  support itself already existed; nothing proved it worked.
+- `entry()` in `widgets.py`: a text field styled and focus-ringed to match the
+  option menus.
 
 ## [0.2.1] - 2026-09-13
 
