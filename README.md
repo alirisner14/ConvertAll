@@ -29,7 +29,7 @@ Two tools do most of the work — **Conversion** when you need a particular file
 
 | Tool | What it does |
 | --- | --- |
-| **Conversion** | For when you need a specific file type. Add images, audio or video and pick the target — the dropdown only offers formats every selected file can actually become. Covers `.png → .webp`, `.heic → .png/.jpg`, `.png/.jpg → .ico`, and `.wav → .mp4` or `.flac`. |
+| **Conversion** | For when you need a specific file type. Add images, audio or video and pick the target — the dropdown only offers formats every selected file can actually become. Covers `.png → .webp`, `.heic → .png/.jpg`, `.png/.jpg → .ico`, and `.wav → .mp3`, `.flac` or `.mp4`. |
 | **Compression** | For when a smaller file is the goal and the format is not. Each type gets the encoder settings that suit it, tuned to stay visually and audibly lossless. |
 | **Tracing (Raster to Vector)** | Auto-traces artwork into scalable `.svg`. Two Potrace-based engines: posterised colour layers for artwork, pure black & white for line art. |
 | **Split SVG Layers** | Splits any layered `.svg` into one standalone file per layer, group or shape. Universal — no assumptions about which editor made the file. |

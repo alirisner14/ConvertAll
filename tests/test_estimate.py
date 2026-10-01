@@ -98,3 +98,38 @@ def test_the_label_marks_estimates_as_approximate(photo):
 )
 def test_clock_formatting(seconds, expected):
     assert _clock(seconds) == expected
+
+
+def test_mp3_from_wav_is_estimated_much_smaller(tmp_path):
+    wav = tmp_path / "lecture.wav"
+    wav.write_bytes(b"\x00" * 10_000_000)
+    guess = estimate_output_bytes(wav, target="mp3", preset="lossless")
+    assert guess is not None
+    assert guess < 10_000_000 / 4
+
+
+def test_a_smaller_mp3_preset_estimates_a_smaller_file(tmp_path):
+    wav = tmp_path / "lecture.wav"
+    wav.write_bytes(b"\x00" * 10_000_000)
+    best = estimate_output_bytes(wav, target="mp3", preset="lossless")
+    small = estimate_output_bytes(wav, target="mp3", preset="small")
+    assert small < best
+
+
+def test_mp3_from_a_compressed_source_declines_to_guess(tmp_path):
+    """The input's own bitrate decides it, and we have not measured that."""
+    song = tmp_path / "song.flac"
+    song.write_bytes(b"\x00" * 10_000)
+    assert estimate_output_bytes(song, target="mp3") is None
+
+
+def test_resizing_lowers_the_estimate(photo):
+    """The column has to answer the same question the Convert button does."""
+    full = estimate_output_bytes(photo, target="webp")
+    half = estimate_output_bytes(photo, target="webp", max_dimension=150)
+    assert half < full / 3  # 300px -> 150px is a quarter of the pixels
+
+
+def test_an_image_already_small_enough_is_not_discounted(photo):
+    full = estimate_output_bytes(photo, target="webp")
+    assert estimate_output_bytes(photo, target="webp", max_dimension=4096) == full

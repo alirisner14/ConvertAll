@@ -11,11 +11,11 @@ from pathlib import Path
 
 from .common import AUDIO_EXTS, IMAGE_EXTS, VIDEO_EXTS, TaskResult, kind_of
 from .images import convert_image
-from .media import audio_to_mp4, compress_audio_lossless, compress_video
+from .media import audio_to_mp4, compress_audio_lossless, compress_video, convert_audio_mp3
 
 # Formats the Conversion tool can produce, in the order they should be offered.
 IMAGE_TARGETS = ("webp", "png", "jpg", "ico")
-AUDIO_TARGETS = ("mp4",)
+AUDIO_TARGETS = ("mp3", "mp4")
 VIDEO_TARGETS = ("mp4",)
 
 # FLAC is only worth offering for audio that is still lossless. Re-encoding an
@@ -27,6 +27,7 @@ TARGET_LABELS = {
     "png": "PNG",
     "jpg": "JPG",
     "ico": "ICO",
+    "mp3": "MP3",
     "mp4": "MP4",
     "flac": "FLAC",
 }
@@ -36,6 +37,7 @@ TARGET_HINTS = {
     "png": "Lossless, keeps transparency. Large but exact.",
     "jpg": "Photographs. No transparency.",
     "ico": "Windows icon, every size packed into one file.",
+    "mp3": "Plays on anything. Lossy, so some audio is discarded.",
     "mp4": "Video container - plays anywhere that accepts video.",
     "flac": "Lossless audio, typically about half the size.",
 }
@@ -50,9 +52,12 @@ def targets_for_file(path: Path) -> tuple[str, ...]:
     if kind == "image":
         return IMAGE_TARGETS
     if kind == "audio":
+        # Re-encoding an MP3 as an MP3 throws away audio for nothing, so that
+        # one combination is left out deliberately.
+        targets = tuple(t for t in AUDIO_TARGETS if t != path.suffix.lower().lstrip("."))
         if path.suffix.lower() in LOSSLESS_AUDIO_EXTS:
-            return (*AUDIO_TARGETS, "flac")
-        return AUDIO_TARGETS
+            return (*targets, "flac")
+        return targets
     if kind == "video":
         return VIDEO_TARGETS
     return ()
@@ -74,7 +79,7 @@ def targets_for(paths) -> list[str]:
         available = set(targets_for_file(path))
         shared = available if shared is None else shared & available
 
-    order = [*IMAGE_TARGETS, "mp4", "flac"]
+    order = [*IMAGE_TARGETS, "mp3", "mp4", "flac"]
     return [target for target in order if target in (shared or set())]
 
 
@@ -107,6 +112,9 @@ def convert_file(
 
     if target == "flac":
         return compress_audio_lossless(src, out_dir, log=log, progress=progress)
+
+    if target == "mp3":
+        return convert_audio_mp3(src, out_dir, preset=preset, log=log, progress=progress)
 
     if target == "mp4":
         if kind_of(src) == "audio":

@@ -14,7 +14,7 @@ from .common import (
 )
 from .compress import minify_svg, smart_compress
 from .images import convert_image
-from .media import audio_to_mp4, compress_audio_lossless, compress_video
+from .media import audio_to_mp4, compress_audio_lossless, compress_video, convert_audio_mp3
 from .svgsplit import split_svg
 from .vectorize import trace_image
 
@@ -28,6 +28,7 @@ __all__ = [
     "collect_files",
     "compress_audio_lossless",
     "compress_video",
+    "convert_audio_mp3",
     "convert_image",
     "default_output_dir",
     "ffmpeg_exe",

@@ -30,12 +30,38 @@ VIDEO_RATIOS = {
 
 LOSSLESS_AUDIO = {".wav", ".aiff", ".aif"}
 
+# MP3 out of uncompressed PCM. CD-quality WAV is a fixed 1411 kbps, so the
+# ratio is simply the target bitrate over that - no probing needed. Sources at
+# other sample rates land somewhat off, which is what "~" is for.
+MP3_FROM_PCM = {"lossless": 0.17, "balanced": 0.135, "small": 0.092}
+
+
+def _downscale_factor(src: Path, max_dimension: int | None) -> float:
+    """How much smaller the pixel count gets, or 1.0 if nothing is resized.
+
+    Reading the header is enough for the size, so this does not decode the
+    image. File size tracks area, not edge length, hence the square.
+    """
+    if not max_dimension:
+        return 1.0
+    try:
+        from PIL import Image
+
+        with Image.open(src) as img:
+            longest = max(img.size)
+    except Exception:  # pragma: no cover - unreadable or unsupported header
+        return 1.0
+    if longest <= max_dimension:
+        return 1.0
+    return (max_dimension / longest) ** 2
+
 
 def estimate_output_bytes(
     src: Path,
     target: str | None = None,
     preset: str = "lossless",
     video_codec: str = "h264",
+    max_dimension: int | None = None,
 ) -> int | None:
     """Rough output size in bytes, or None when there is no honest guess."""
     src = Path(src)
@@ -51,10 +77,10 @@ def estimate_output_bytes(
 
     if kind == "image":
         chosen = target if target in IMAGE_RATIOS else ext if ext in IMAGE_RATIOS else "webp"
+        shrink = _downscale_factor(src, max_dimension)
         # Re-encoding a format into itself rarely moves much.
-        if chosen == ext and chosen != "webp":
-            return int(original * 0.9)
-        return int(original * IMAGE_RATIOS[chosen].get(preset, 0.3))
+        ratio = 0.9 if chosen == ext and chosen != "webp" else IMAGE_RATIOS[chosen].get(preset, 0.3)
+        return int(original * ratio * shrink)
 
     if kind == "video":
         return int(original * VIDEO_RATIOS.get(video_codec, VIDEO_RATIOS["h264"]).get(preset, 0.6))
@@ -62,6 +88,12 @@ def estimate_output_bytes(
     if kind == "audio":
         if target == "mp4":
             return None  # depends entirely on the video track chosen alongside it
+        if target == "mp3":
+            if f".{ext}" in LOSSLESS_AUDIO:
+                return int(original * MP3_FROM_PCM.get(preset, MP3_FROM_PCM["lossless"]))
+            # Re-encoding something already compressed: the input's own bitrate
+            # decides the answer and we have not measured it, so say nothing.
+            return None
         if f".{ext}" in LOSSLESS_AUDIO:
             return int(original * 0.55)  # FLAC on ordinary PCM
         return original  # already lossy: copied untouched

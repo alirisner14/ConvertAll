@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **WAV to MP3.** Any audio except MP3 itself can now be converted to MP3 —
+  MP3 to MP3 is left out of the menu on purpose, since re-encoding discards
+  audio for nothing. Three LAME VBR settings (V0 ≈ 245 kbps, V2 ≈ 190, V5
+  ≈ 130), tags carried across, and cover art skipped rather than re-encoded as
+  a video stream. The quality menu relabels itself for MP3: the image wording
+  "visually lossless" would be false here, because every MP3 setting loses
+  something.
 - **A custom maximum size.** The resize menu had five fixed choices; it now
   also offers `Custom...`, which reveals a pixel field. The value is the longest
   edge, the aspect ratio is kept, and anything already smaller is left alone —
@@ -19,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   support itself already existed; nothing proved it worked.
 - `entry()` in `widgets.py`: a text field styled and focus-ringed to match the
   option menus.
+
+### Fixed
+- **The "Est. after" column ignored what you had chosen.** It was costing every
+  file against the default pipeline, so a WAV headed for MP3 was priced as a
+  FLAC and a resized image was priced at full size. It now follows the selected
+  target, quality and codec, and accounts for a maximum size.
 
 ## [0.2.1] - 2026-09-13
 

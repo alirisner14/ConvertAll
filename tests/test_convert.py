@@ -23,10 +23,10 @@ from convertall.core.convert import (
         ("photo.png", set(IMAGE_TARGETS)),
         ("photo.JPG", set(IMAGE_TARGETS)),
         ("shot.heic", set(IMAGE_TARGETS)),
-        ("lecture.wav", {"mp4", "flac"}),
-        ("lecture.aiff", {"mp4", "flac"}),
-        ("song.mp3", {"mp4"}),
-        ("song.flac", {"mp4"}),
+        ("lecture.wav", {"mp3", "mp4", "flac"}),
+        ("lecture.aiff", {"mp3", "mp4", "flac"}),
+        ("song.mp3", {"mp4"}),  # no MP3 -> MP3: loss for nothing
+        ("song.flac", {"mp3", "mp4"}),
         ("clip.mp4", {"mp4"}),
         ("clip.mov", {"mp4"}),
         ("art.svg", set()),
@@ -50,6 +50,7 @@ def test_targets_for_is_the_intersection():
     assert targets_for([Path("a.png"), Path("b.wav")]) == []
     # Two audio files, only one of them lossless.
     assert targets_for([Path("a.wav"), Path("b.mp3")]) == ["mp4"]
+    assert targets_for([Path("a.wav"), Path("b.flac")]) == ["mp3", "mp4"]
 
 
 def test_targets_for_is_empty_without_files():
@@ -128,3 +129,59 @@ def test_heic_honours_max_dimension(tmp_path, heic):
     result = convert_file(heic, tmp_path / "out", target="png", max_dimension=60)
     with Image.open(result.output) as out:
         assert max(out.size) == 60
+
+
+# --- MP3 -------------------------------------------------------------------- #
+
+
+def _tone(path: Path, seconds: float = 1.0) -> Path:
+    """A real WAV, written by hand so the test needs no fixture files."""
+    import math
+    import struct
+    import wave
+
+    rate = 44100
+    with wave.open(str(path), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(rate)
+        frames = int(rate * seconds)
+        out.writeframes(
+            b"".join(
+                struct.pack("<h", int(20000 * math.sin(2 * math.pi * 440 * i / rate)))
+                for i in range(frames)
+            )
+        )
+    return path
+
+
+def test_wav_converts_to_mp3(tmp_path):
+    src = _tone(tmp_path / "lecture.wav")
+    result = convert_file(src, tmp_path / "out", target="mp3")
+    assert result.ok
+    assert result.output.suffix == ".mp3"
+    assert result.output.stat().st_size > 0
+
+
+def test_mp3_is_much_smaller_than_the_wav(tmp_path):
+    src = _tone(tmp_path / "lecture.wav", seconds=2.0)
+    result = convert_file(src, tmp_path / "out", target="mp3")
+    assert result.bytes_out < result.bytes_in / 2
+
+
+def test_a_smaller_mp3_preset_produces_a_smaller_file(tmp_path):
+    src = _tone(tmp_path / "lecture.wav", seconds=2.0)
+    best = convert_file(src, tmp_path / "best", target="mp3", preset="lossless")
+    small = convert_file(src, tmp_path / "small", target="mp3", preset="small")
+    assert small.bytes_out < best.bytes_out
+
+
+def test_the_mp3_is_actually_decodable(tmp_path):
+    """A file with an .mp3 name proves nothing; FFmpeg has to be able to read it."""
+    from convertall.core.common import probe_duration
+
+    src = _tone(tmp_path / "lecture.wav", seconds=2.0)
+    result = convert_file(src, tmp_path / "out", target="mp3")
+    duration = probe_duration(str(result.output))
+    assert duration is not None
+    assert 1.8 < duration < 2.3

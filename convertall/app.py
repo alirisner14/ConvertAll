@@ -70,6 +70,15 @@ CUSTOM_SIZE = "Custom..."
 # is well past 8K, so it only stops typos like a stray extra digit.
 MIN_CUSTOM_PX, MAX_CUSTOM_PX = 16, 20000
 
+IMAGE_QUALITY_HINT = (
+    "Visually lossless keeps flat artwork bit-perfect and photos "
+    "indistinguishable from the original."
+)
+MP3_QUALITY_HINT = (
+    "MP3 always discards some audio - there is no lossless setting. The highest "
+    "option is chosen to be inaudible on ordinary listening."
+)
+
 # Optional drag-and-drop. The app works fine without it.
 try:  # pragma: no cover - depends on environment
     from tkinterdnd2 import DND_FILES, TkinterDnD
@@ -451,21 +460,29 @@ class ConversionPanel(ToolPanel):
         )
         self.target_hint.pack(side="left", padx=12)
 
-        row = self.row(
-            parent,
-            "Quality",
-            "Visually lossless keeps flat artwork bit-perfect and photos "
-            "indistinguishable from the original.",
-            name="quality",
+        # No static hint here: the wording has to change with the target, since
+        # "visually lossless" means nothing for audio.
+        row = self.row(parent, "Quality", name="quality")
+        self.quality_hint = label(
+            row.master,
+            self.palette,
+            IMAGE_QUALITY_HINT,
+            kind="small",
+            scale=self.scale,
+            muted=True,
+            wraplength=700,
         )
-        option_menu(
+        self.quality_hint.pack(anchor="w", pady=(0, 6), before=row)
+        self.quality_menu = option_menu(
             row,
             self.palette,
             list(images_core.PRESET_LABELS.values()),
             self.preset,
             self.scale,
-            width=240,
-        ).pack(side="left")
+            width=260,
+            command=lambda _v: self.refresh_estimates(),
+        )
+        self.quality_menu.pack(side="left")
 
         row = self.row(
             parent,
@@ -597,6 +614,10 @@ class ConversionPanel(ToolPanel):
 
         if target in convert_core.IMAGE_TARGETS:
             visible |= {"quality", "resize"}
+        elif target in ("mp3", "flac"):
+            # FLAC has no quality setting to offer; MP3 does.
+            if target == "mp3":
+                visible.add("quality")
         elif target == "mp4":
             visible.add("quality")
             if "audio" in kinds:
@@ -614,6 +635,8 @@ class ConversionPanel(ToolPanel):
                 row.pack(fill="x", padx=16, pady=(0, 12))
 
         self._toggle_custom_size()
+        self._relabel_presets(target)
+        self.refresh_estimates()
 
         if target:
             self.target_hint.configure(text=convert_core.TARGET_HINTS.get(target, ""))
@@ -625,6 +648,43 @@ class ConversionPanel(ToolPanel):
         else:
             self.target_hint.configure(text="Add files to see what they can become.")
 
+    def estimate_for(self, path: Path) -> str:
+        """The estimate has to track the chosen target, not the file alone.
+
+        Without this the column answered a different question from the one the
+        Convert button does - a WAV headed for MP3 was costed as FLAC.
+        """
+        return estimate_label(
+            path,
+            target=self._current_target() or None,
+            preset=self._preset_key(),
+            video_codec=next(
+                (k for k, v in media_core.VIDEO_CODECS.items() if v == self.video_codec.get()),
+                "h264",
+            ),
+            max_dimension=self._max_dimension_or_none(),
+        )
+
+    def _relabel_presets(self, target: str | None) -> None:
+        """Keep the quality wording truthful for whatever is being produced."""
+        audio = target == "mp3"
+        labels = media_core.MP3_PRESET_LABELS if audio else images_core.PRESET_LABELS
+        if self.quality_menu.cget("values") == list(labels.values()):
+            return
+        key = self._preset_key()
+        self.quality_menu.configure(values=list(labels.values()))
+        self.preset.set(labels[key])
+        self.quality_hint.configure(text=MP3_QUALITY_HINT if audio else IMAGE_QUALITY_HINT)
+
+    def _preset_key(self) -> str:
+        """The preset currently chosen, whichever set of labels is showing."""
+        chosen = self.preset.get()
+        for labels in (images_core.PRESET_LABELS, media_core.MP3_PRESET_LABELS):
+            for key, text in labels.items():
+                if text == chosen:
+                    return key
+        return "lossless"
+
     def _toggle_custom_size(self) -> None:
         """Show the pixel field only when the menu asks for one."""
         if self.resize.get() == CUSTOM_SIZE:
@@ -633,6 +693,13 @@ class ConversionPanel(ToolPanel):
         else:
             self.custom_entry.pack_forget()
             self.custom_hint.pack_forget()
+
+    def _max_dimension_or_none(self) -> int | None:
+        """For the estimate column, where a half-typed number must not raise."""
+        try:
+            return self._max_dimension()
+        except ValueError:
+            return None
 
     def _max_dimension(self) -> int | None:
         """The chosen longest edge, or None to keep the original size.
@@ -691,7 +758,7 @@ class ConversionPanel(ToolPanel):
         super().run()
 
     def make_job(self):
-        preset_key = next(k for k, v in images_core.PRESET_LABELS.items() if v == self.preset.get())
+        preset_key = self._preset_key()
         codec_key = next(
             k for k, v in media_core.VIDEO_CODECS.items() if v == self.video_codec.get()
         )
