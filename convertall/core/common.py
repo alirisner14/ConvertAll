@@ -104,6 +104,52 @@ def ensure_dir(path: Path) -> Path:
     return path
 
 
+ILLEGAL_NAME_CHARS = set('<>:"/' + chr(92) + "|?*")
+RESERVED_NAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{n}" for n in range(1, 10)),
+    *(f"LPT{n}" for n in range(1, 10)),
+}
+
+
+def clean_stem(text: str) -> str:
+    """A filename Windows will accept, or "" if nothing usable is left.
+
+    Returning "" rather than a substitute matters: the caller treats empty as
+    "no rename asked for", so a name made entirely of illegal characters keeps
+    the original filename instead of producing something like "___".
+    """
+    stem = "".join(ch for ch in (text or "").strip() if ch not in ILLEGAL_NAME_CHARS)
+    # Windows silently drops trailing dots and spaces, which would turn
+    # "report." into a different name than the one the user saw.
+    stem = stem.rstrip(". ").strip()
+    if not stem or set(stem) <= {"."}:
+        return ""
+    if stem.upper() in RESERVED_NAMES or stem.upper().split(".")[0] in RESERVED_NAMES:
+        return f"{stem} file"
+    return stem[:150]
+
+
+def numbered_stem(stem: str, index: int, total: int) -> str:
+    """One name across a batch needs a number, zero-padded so it sorts right."""
+    if total <= 1:
+        return stem
+    return f"{stem} {index:0{len(str(total))}d}"
+
+
+def rename_output(path: Path, stem: str) -> Path:
+    """Rename a produced file, keeping its extension. Returns the new path."""
+    path = Path(path)
+    target = unique_path(path.with_name(f"{stem}{path.suffix}"))
+    if target == path:
+        return path
+    path.rename(target)
+    return target
+
+
 def unique_path(path: Path) -> Path:
     """Never clobber an existing file: foo.png -> foo (2).png."""
     if not path.exists():

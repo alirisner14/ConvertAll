@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Name the result.** An optional field in the Save-to card renames the output,
+  leaving the input untouched. Empty keeps each file's own name. Across a batch
+  the name is numbered (`holiday 1`, `holiday 2`…), zero-padded so ten files
+  still sort correctly, and an existing file is never overwritten. Characters
+  Windows rejects are stripped as you type, and the hint shows the name that
+  will actually be written. Split SVG Layers does not offer it - one input
+  produces a folder of files, so there is no single thing to name.
+- The app icon is mint on charcoal, matching the interface. It had been amber
+  on near-black since before the palette changed.
 - **WAV to MP3.** Any audio except MP3 itself can now be converted to MP3 —
   MP3 to MP3 is left out of the menu on purpose, since re-encoding discards
   audio for nothing. Three LAME VBR settings (V0 ≈ 245 kbps, V2 ≈ 190, V5

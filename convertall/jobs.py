@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .core.common import TaskResult
+from .core.common import TaskResult, numbered_stem, rename_output
 
 
 @dataclass
@@ -57,20 +57,27 @@ class JobRunner:
         self,
         files: list[Path],
         worker: Callable[..., TaskResult],
+        rename: str = "",
         **kwargs: Any,
     ) -> None:
         if self.busy:
             raise RuntimeError("A job is already running")
         self._cancel.clear()
         self._thread = threading.Thread(
-            target=self._run, args=(list(files), worker, kwargs), daemon=True
+            target=self._run, args=(list(files), worker, kwargs, rename), daemon=True
         )
         self._thread.start()
 
     def _emit(self, kind: str, payload: Any = None) -> None:
         self.events.put((kind, payload))
 
-    def _run(self, files: list[Path], worker: Callable[..., TaskResult], kwargs: dict) -> None:
+    def _run(
+        self,
+        files: list[Path],
+        worker: Callable[..., TaskResult],
+        kwargs: dict,
+        rename: str = "",
+    ) -> None:
         summary = JobSummary(total=len(files))
         total = len(files)
         started = time.monotonic()
@@ -105,6 +112,17 @@ class JobRunner:
                 result = TaskResult(source=Path(path), ok=False, message=str(exc))
                 self._emit("detail", traceback.format_exc())
             tick(1.0, index)
+
+            # Renaming afterwards keeps every pipeline ignorant of it. The
+            # alternative - threading a name through each one - would have to be
+            # repeated correctly in six places and kept right in all of them.
+            if result.ok and rename and result.output:
+                try:
+                    result.output = rename_output(
+                        result.output, numbered_stem(rename, index, total)
+                    )
+                except OSError as exc:
+                    self._emit("detail", f"could not rename {result.output.name}: {exc}")
 
             if result.ok:
                 summary.succeeded += 1

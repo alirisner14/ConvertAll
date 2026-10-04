@@ -55,7 +55,7 @@ def build() -> Path:
     img = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    # Rounded amber tile, matching the accent colour used across the app.
+    # Rounded mint tile, matching the accent colour used across the app.
     draw.rounded_rectangle([0, 0, SIZE - 1, SIZE - 1], radius=SIZE * 0.22, fill=DARK.accent)
     # Inset dark panel so the arrows read at 16px.
     inset = SIZE * 0.11

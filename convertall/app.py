@@ -29,10 +29,12 @@ from .core.common import (
     IMAGE_EXTS,
     VECTOR_EXTS,
     VIDEO_EXTS,
+    clean_stem,
     collect_files,
     default_output_dir,
     human,
     kind_of,
+    numbered_stem,
     size_change,
 )
 from .core.compress import smart_compress
@@ -62,6 +64,8 @@ from .widgets import (
 )
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
+
+RENAME_HINT_ONE = "Leave this empty to keep each file's own name."
 
 # Resize choices that are not a pixel count. Kept as constants because both the
 # menu and the code that reads it have to agree exactly.
@@ -135,6 +139,9 @@ class ToolPanel(ctk.CTkScrollableFrame):
     title = "Tool"
     description = ""
     accepted: set[str] = set()
+    # Tools that write a folder of files per input have nothing single to
+    # rename, so they do not offer the field.
+    supports_rename = True
     file_label = "Files"
     drop_hint = "any supported file"
     action_text = "Convert"
@@ -269,6 +276,7 @@ class ToolPanel(ctk.CTkScrollableFrame):
 
     def on_files_changed(self) -> None:
         """Hook for panels whose options depend on which files are loaded."""
+        self._update_rename_hint()
 
     # -- options (subclasses override) -------------------------------------- #
 
@@ -348,6 +356,52 @@ class ToolPanel(ctk.CTkScrollableFrame):
             height=40,
         ).pack(side="left", padx=10)
 
+        if self.supports_rename:
+            self._build_rename_row(card)
+
+    def _build_rename_row(self, card) -> None:
+        """Optional: name the output something other than the input's name."""
+        wrapper = ctk.CTkFrame(card, fg_color="transparent")
+        wrapper.pack(fill="x", padx=16, pady=(0, 16))
+        label(wrapper, self.palette, "Name the result (optional)", scale=self.scale).pack(
+            anchor="w", pady=(0, 4)
+        )
+        self.rename_hint = label(
+            wrapper,
+            self.palette,
+            RENAME_HINT_ONE,
+            kind="small",
+            scale=self.scale,
+            muted=True,
+            wraplength=700,
+        )
+        self.rename_hint.pack(anchor="w", pady=(0, 6))
+        self.rename = tk.StringVar(value="")
+        entry(
+            wrapper,
+            self.palette,
+            self.rename,
+            self.scale,
+            width=320,
+            placeholder="Keep the original name",
+        ).pack(anchor="w")
+        self.rename.trace_add("write", lambda *_: self._update_rename_hint())
+
+    def _update_rename_hint(self) -> None:
+        """Show the name that will actually be written, numbering included."""
+        if not self.supports_rename:
+            return
+        stem = clean_stem(self.rename.get())
+        count = len(self.files)
+        if not stem:
+            self.rename_hint.configure(text=RENAME_HINT_ONE)
+        elif count > 1:
+            first = numbered_stem(stem, 1, count)
+            last = numbered_stem(stem, count, count)
+            self.rename_hint.configure(text=f"Saved as {first}… through {last}…")
+        else:
+            self.rename_hint.configure(text=f"Saved as {stem}…")
+
     def choose_output(self) -> None:
         folder = filedialog.askdirectory(title="Choose the output folder")
         if folder:
@@ -409,7 +463,19 @@ class ToolPanel(ctk.CTkScrollableFrame):
 
         worker, kwargs = self.make_job()
         kwargs["out_dir"] = self.output_dir
-        self.app.run_job([Path(p) for p in self.files.paths], worker, self.title, **kwargs)
+        self.app.run_job(
+            [Path(p) for p in self.files.paths],
+            worker,
+            self.title,
+            rename=self.rename_stem(),
+            **kwargs,
+        )
+
+    def rename_stem(self) -> str:
+        """The cleaned-up name to use, or "" to keep each file's own."""
+        if not self.supports_rename:
+            return ""
+        return clean_stem(self.rename.get())
 
     def set_running(self, running: bool) -> None:
         self.run_button.configure(state="disabled" if running else "normal")
@@ -868,6 +934,8 @@ class TracePanel(ToolPanel):
 
 class SplitPanel(ToolPanel):
     key = "split"
+    # One SVG in, a folder of layers out: there is no single file to name.
+    supports_rename = False
     title = "Split SVG Layers"
     description = (
         "Break a layered .svg into one standalone file per layer, group or shape. "
@@ -1255,7 +1323,7 @@ class ConvertAllApp(_Root):
 
     # -- jobs --------------------------------------------------------------- #
 
-    def run_job(self, files, worker, title: str, **kwargs) -> None:
+    def run_job(self, files, worker, title: str, rename: str = "", **kwargs) -> None:
         if self.runner.busy:
             self.log_line("A job is already running.", "warn")
             return
@@ -1268,7 +1336,9 @@ class ConvertAllApp(_Root):
         self.progress.set(0)
         self.timing.configure(text="")
         self.current_panel().set_running(True)
-        self.runner.start(files, worker, **kwargs)
+        if rename:
+            self._details.append(f"renaming output to '{rename}'")
+        self.runner.start(files, worker, rename=rename, **kwargs)
 
     def cancel_job(self) -> None:
         if self.runner.busy:
