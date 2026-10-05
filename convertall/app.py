@@ -862,6 +862,9 @@ class TracePanel(ToolPanel):
         self.detail = tk.StringVar(value=trace_core.DETAIL_LABELS["medium"])
         self.threshold = tk.IntVar(value=128)
         self.invert = tk.BooleanVar(value=False)
+        self.colors = tk.IntVar(value=trace_core.DETAIL["medium"][0])
+        self.seamless = tk.BooleanVar(value=False)
+        self.preview = tk.BooleanVar(value=True)
 
         row = self.row(parent, "Engine")
         option_menu(
@@ -885,6 +888,52 @@ class TracePanel(ToolPanel):
             self.scale,
             width=220,
         ).pack(side="left")
+
+        self.colour_row = self.row(
+            parent,
+            "Colours",
+            "How many flat colours the artwork is reduced to before tracing. "
+            "Flat drawn artwork usually wants a handful; raise it for photographs.",
+        )
+        self.colour_value = label(
+            self.colour_row, self.palette, str(self.colors.get()), kind="body", scale=self.scale
+        )
+        ctk.CTkSlider(
+            self.colour_row,
+            from_=trace_core.MIN_COLORS,
+            to=trace_core.MAX_COLORS,
+            number_of_steps=trace_core.MAX_COLORS - trace_core.MIN_COLORS,
+            variable=self.colors,
+            width=280,
+            fg_color=self.palette.surface_alt,
+            progress_color=self.palette.accent,
+            button_color=self.palette.accent,
+            button_hover_color=self.palette.accent_hover,
+            command=lambda v: self.colour_value.configure(text=str(int(float(v)))),
+        ).pack(side="left")
+        self.colour_value.pack(side="left", padx=12)
+
+        row = self.row(
+            parent,
+            "Seamless pattern tile",
+            "Traces the tile wrapped against itself, so shapes crossing the edge "
+            "stay continuous and the pattern still repeats without a visible seam.",
+        )
+        checkbox(
+            row, self.palette, "This image is a repeating tile", self.seamless, self.scale
+        ).pack(side="left")
+        checkbox(
+            row, self.palette, "Also save a 3x3 repeat to check", self.preview, self.scale
+        ).pack(side="left", padx=16)
+        AccessibleButton(
+            row,
+            self.palette,
+            "Check the source tile",
+            self.show_repeat,
+            variant="quiet",
+            scale=self.scale,
+            height=38,
+        ).pack(side="left", padx=4)
 
         self.mono_row = self.row(
             parent,
@@ -920,6 +969,28 @@ class TracePanel(ToolPanel):
             # Labels have no 'state' option; skipping them is fine.
             with contextlib.suppress(Exception):
                 child.configure(state="normal" if is_mono else "disabled")
+        # Colours only mean anything to the posterising engine.
+        for child in self.colour_row.winfo_children():
+            with contextlib.suppress(Exception):
+                child.configure(state="disabled" if is_mono else "normal")
+
+    def show_repeat(self) -> None:
+        """Tile the chosen source image 3x3 so a bad seam is visible first.
+
+        Worth doing before tracing: if the Procreate export does not already
+        tile cleanly, no amount of care in the tracer will rescue it.
+        """
+        paths = self.files.paths
+        if not paths:
+            messagebox.showinfo("ConvertAll", "Add an image first.")
+            return
+        try:
+            RepeatWindow(self, Path(paths[0]), self.palette, self.scale)
+        except Exception as exc:
+            self.app.log_line(f"Could not build the repeat preview: {exc}", "error")
+            messagebox.showinfo(
+                "ConvertAll", f"Could not build the repeat preview.{chr(10)}{chr(10)}{exc}"
+            )
 
     def make_job(self):
         engine_key = next(k for k, v in trace_core.ENGINES.items() if v == self.engine.get())
@@ -929,7 +1000,67 @@ class TracePanel(ToolPanel):
             "detail": detail_key,
             "threshold": int(self.threshold.get()),
             "invert": bool(self.invert.get()),
+            "colors": int(self.colors.get()),
+            "seamless": bool(self.seamless.get()),
+            "preview": bool(self.seamless.get() and self.preview.get()),
         }
+
+
+class RepeatWindow(ctk.CTkToplevel):
+    """Shows an image tiled 3x3, which is the only way a seam is visible.
+
+    Deliberately the *source* image: catching a tile that was never seamless to
+    begin with saves tracing it three times and blaming the tracer.
+    """
+
+    GRID = 3
+    MAX_EDGE = 640
+
+    def __init__(self, panel, src: Path, palette: Palette, scale: float) -> None:
+        super().__init__(panel.app)
+        self.title(f"Repeat check - {src.name}")
+        self.configure(fg_color=palette.bg)
+        self.transient(panel.app)
+
+        from PIL import Image
+
+        from .core.images import open_image
+
+        with open_image(src) as opened:
+            tile = opened.convert("RGBA")
+            cell = max(1, self.MAX_EDGE // self.GRID)
+            tile.thumbnail((cell, cell), Image.LANCZOS)
+            sheet = Image.new("RGBA", (tile.width * self.GRID, tile.height * self.GRID))
+            for row in range(self.GRID):
+                for col in range(self.GRID):
+                    sheet.paste(tile, (col * tile.width, row * tile.height))
+
+        label(
+            self,
+            palette,
+            f"{src.name} repeated {self.GRID} by {self.GRID}",
+            kind="title",
+            scale=scale,
+        ).pack(anchor="w", padx=16, pady=(16, 4))
+        label(
+            self,
+            palette,
+            "Look along the joins. Any line, gap or jump there is in the source "
+            "image, and tracing will keep it.",
+            kind="small",
+            scale=scale,
+            muted=True,
+            wraplength=sheet.width,
+        ).pack(anchor="w", padx=16, pady=(0, 10))
+
+        self._image = ctk.CTkImage(light_image=sheet, dark_image=sheet, size=sheet.size)
+        ctk.CTkLabel(self, image=self._image, text="").pack(padx=16, pady=(0, 12))
+        AccessibleButton(
+            self, palette, "Close", self.destroy, variant="secondary", scale=scale, height=40
+        ).pack(anchor="e", padx=16, pady=(0, 16))
+
+        self.after(80, self.lift)
+        self.bind("<Escape>", lambda _e: self.destroy())
 
 
 class SplitPanel(ToolPanel):

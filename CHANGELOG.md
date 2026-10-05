@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Seamless pattern tiles.** Tick "This image is a repeating tile" and the
+  tracer pads the tile with its own opposite edges, traces that, and clips back
+  to the tile rectangle. Shapes crossing the seam are then one continuous curve
+  cut at the boundary instead of two independently smoothed curves that have to
+  agree - measured on a test tile, the old path put 11 nodes on one edge and 9
+  on the other, which is exactly the mismatch that shows when a pattern repeats.
+  The tile keeps its own size and viewBox, so repeat spacing is unchanged.
+- **A 3x3 repeat written alongside the tile**, referencing it rather than
+  copying it, so a re-trace updates the check too. Plus a "Check the source
+  tile" button that tiles the *input* image in a window - if the export was
+  never seamless, no tracer setting will rescue it.
+- **A Colours control** for the posterising engine, 2 to 32, replacing the
+  fixed count the Detail preset implied.
+- **One named group per colour**, with the fill on the group
+  (`<g id="colour-1" fill="#2a785a">`) rather than on every path, so recolouring
+  a pattern is one edit per colour in any editor.
 - **Name the result.** An optional field in the Save-to card renames the output,
   leaving the input untouched. Empty keeps each file's own name. Across a batch
   the name is numbered (`holiday 1`, `holiday 2`…), zero-padded so ten files

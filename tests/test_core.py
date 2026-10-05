@@ -297,9 +297,12 @@ def test_color_engine_stacks_one_layer_per_colour(tmp_path):
 
     result = trace_image(src, tmp_path / "out", engine="color", detail="low")
     assert result.ok
-    paths = etree.parse(str(result.output)).getroot().findall(".//{http://www.w3.org/2000/svg}path")
-    assert len(paths) >= 3, "expected a layer per colour band"
-    assert all(p.get("fill", "").startswith("#") for p in paths)
+    root = etree.parse(str(result.output)).getroot()
+    groups = root.findall(".//{http://www.w3.org/2000/svg}g")
+    assert len(groups) >= 3, "expected a layer per colour band"
+    # The fill belongs to the group: recolouring a pattern should be one edit.
+    assert all(g.get("fill", "").startswith("#") for g in groups)
+    assert all(g.get("id", "").startswith("colour-") for g in groups)
 
 
 def test_color_engine_ignores_transparent_regions(logo, tmp_path):
