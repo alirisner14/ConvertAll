@@ -93,6 +93,8 @@ def convert_file(
     resolution: tuple[int, int] = (1920, 1080),
     background_color: str = "black",
     video_codec: str = "h264",
+    height: int = 0,
+    upscale: bool = False,
     log=None,
     progress=None,
 ) -> TaskResult:
@@ -129,7 +131,14 @@ def convert_file(
                 progress=progress,
             )
         return compress_video(
-            src, out_dir, preset=preset, codec=video_codec, log=log, progress=progress
+            src,
+            out_dir,
+            preset=preset,
+            codec=video_codec,
+            height=height,
+            upscale=upscale,
+            log=log,
+            progress=progress,
         )
 
     raise RuntimeError(f"Unsupported target format: {target}")

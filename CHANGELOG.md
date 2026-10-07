@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Video resolution, up and down.** Compression and Conversion both offer
+  2160p through 360p alongside "Keep original". Width follows the source's
+  shape and is rounded even for yuv420p. Downscaling is capped in-filter
+  (`min(ih,720)`), so a mixed batch is handled per file rather than per batch,
+  and a 720p video in a 1080p batch is left alone instead of being enlarged.
+  Enlarging is opt-in through a separate checkbox.
+- **Advice about how far to go**, relative to the source's own resolution: a
+  1080p video is told not to go below 480p, a 4K one not below 720p, and a 720p
+  one not above 1440p. The floor is partly absolute, because legibility is -
+  360p is hard to read whether it came from 720p or from 4K.
+- The "Est. after" column accounts for the chosen resolution. Measured on a
+  1080p clip it said ~3.3 MB; the result was 3.5 MB.
 - **Seamless pattern tiles.** Tick "This image is a repeating tile" and the
   tracer pads the tile with its own opposite edges, traces that, and clips back
   to the tile rectangle. Shapes crossing the seam are then one continuous curve

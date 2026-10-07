@@ -35,6 +35,7 @@ from .core.common import (
     human,
     kind_of,
     numbered_stem,
+    probe_dimensions,
     size_change,
 )
 from .core.compress import smart_compress
@@ -277,6 +278,8 @@ class ToolPanel(ctk.CTkScrollableFrame):
     def on_files_changed(self) -> None:
         """Hook for panels whose options depend on which files are loaded."""
         self._update_rename_hint()
+        if hasattr(self, "rescale_note"):
+            self._refresh_rescale_note()
 
     # -- options (subclasses override) -------------------------------------- #
 
@@ -284,6 +287,85 @@ class ToolPanel(ctk.CTkScrollableFrame):
         self.options_card = Card(self, self.palette, "Options", scale=self.scale)
         self.options_card.pack(fill="x", padx=4, pady=(0, 14))
         self.build_options(self.options_card)
+
+    def _build_resolution_row(self, parent, name: str = "resolution_out"):
+        """Shared by both panels that re-encode video."""
+        self.out_height = tk.StringVar(value=media_core.RESOLUTIONS_OUT[0])
+        self.upscale = tk.BooleanVar(value=False)
+        row = self.row(
+            parent,
+            "Video resolution",
+            "Fewer pixels is the biggest saving available - 1080p to 720p is "
+            "well under half the pixels. Width follows the original shape.",
+            name=name,
+        )
+        option_menu(
+            row,
+            self.palette,
+            list(media_core.RESOLUTIONS_OUT.values()),
+            self.out_height,
+            self.scale,
+            width=200,
+            command=lambda _v: self._on_height_change(),
+        ).pack(side="left")
+        self.upscale_box = checkbox(
+            row,
+            self.palette,
+            "Enlarge videos that are already smaller",
+            self.upscale,
+            self.scale,
+        )
+        self.upscale.trace_add("write", lambda *_: self._refresh_rescale_note())
+        self.upscale_box.pack(side="left", padx=16)
+        self.rescale_note = label(
+            row.master,
+            self.palette,
+            "",
+            kind="small",
+            scale=self.scale,
+            muted=True,
+            wraplength=700,
+        )
+        self._refresh_rescale_note()
+        return row
+
+    def _source_height(self) -> int:
+        """The first selected video's height, which the advice is relative to.
+
+        One file, not all of them: probing a long list would stall the window,
+        and a mixed batch has no single right answer to give advice about.
+        """
+        for raw in self.files.paths:
+            path = Path(raw)
+            if kind_of(path) != "video":
+                continue
+            size = probe_dimensions(str(path))
+            if size:
+                return size[1]
+        return 0
+
+    def _refresh_rescale_note(self) -> None:
+        note = media_core.rescale_advice(
+            self._source_height(), self.selected_height(), bool(self.upscale.get())
+        )
+        self.rescale_note.configure(text=note)
+        # An empty label still takes vertical space, so take it out of the
+        # layout entirely when there is nothing to say.
+        if note:
+            self.rescale_note.pack(anchor="w", pady=(8, 0))
+        else:
+            self.rescale_note.pack_forget()
+
+    def _on_height_change(self) -> None:
+        self._refresh_rescale_note()
+        self.refresh_estimates()
+
+    def selected_height(self) -> int:
+        chosen = self.out_height.get()
+        for height, text in media_core.RESOLUTIONS_OUT.items():
+            if text == chosen:
+                return height
+        return 0
 
     def build_options(self, parent) -> None:  # pragma: no cover - overridden
         label(
@@ -498,7 +580,16 @@ class ConversionPanel(ToolPanel):
 
     # Rows are re-packed in this order whenever visibility changes, so hiding
     # one never shuffles the rest.
-    ROW_ORDER = ("target", "quality", "resize", "background", "resolution", "bgcolour", "codec")
+    ROW_ORDER = (
+        "target",
+        "quality",
+        "resize",
+        "background",
+        "resolution",
+        "bgcolour",
+        "codec",
+        "resolution_out",
+    )
 
     def build_options(self, parent) -> None:
         self.targets: list[str] = []
@@ -643,6 +734,8 @@ class ConversionPanel(ToolPanel):
             width=340,
         ).pack(side="left")
 
+        self._build_resolution_row(parent)
+
         self._refresh_targets()
 
     # -- dynamic format list ------------------------------------------------ #
@@ -690,7 +783,7 @@ class ConversionPanel(ToolPanel):
             if "audio" in kinds:
                 visible |= {"background", "resolution", "bgcolour"}
             if "video" in kinds:
-                visible.add("codec")
+                visible |= {"codec", "resolution_out"}
 
         for name in self.ROW_ORDER:
             row = self.option_rows.get(name)
@@ -730,6 +823,8 @@ class ConversionPanel(ToolPanel):
                 "h264",
             ),
             max_dimension=self._max_dimension_or_none(),
+            height=self.selected_height(),
+            upscale=bool(self.upscale.get()),
         )
 
     def _relabel_presets(self, target: str | None) -> None:
@@ -838,6 +933,8 @@ class ConversionPanel(ToolPanel):
             "resolution": media_core.RESOLUTIONS[self.resolution.get()],
             "background_color": colours[self.bg_colour.get()],
             "video_codec": codec_key,
+            "height": self.selected_height(),
+            "upscale": bool(self.upscale.get()),
         }
 
 
@@ -1176,6 +1273,23 @@ class CompressionPanel(ToolPanel):
             width=340,
         ).pack(side="left")
 
+        self._build_resolution_row(parent)
+
+    def estimate_for(self, path: Path) -> str:
+        return estimate_label(
+            path,
+            preset=next(
+                (k for k, v in images_core.PRESET_LABELS.items() if v == self.preset.get()),
+                "lossless",
+            ),
+            video_codec=next(
+                (k for k, v in media_core.VIDEO_CODECS.items() if v == self.video_codec.get()),
+                "h264",
+            ),
+            height=self.selected_height(),
+            upscale=bool(self.upscale.get()),
+        )
+
     def make_job(self):
         preset_key = next(k for k, v in images_core.PRESET_LABELS.items() if v == self.preset.get())
         codec_key = next(
@@ -1185,6 +1299,8 @@ class CompressionPanel(ToolPanel):
             "preset": preset_key,
             "images_to_webp": bool(self.to_webp.get()),
             "video_codec": codec_key,
+            "height": self.selected_height(),
+            "upscale": bool(self.upscale.get()),
         }
 
 

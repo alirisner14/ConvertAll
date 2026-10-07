@@ -56,12 +56,33 @@ def _downscale_factor(src: Path, max_dimension: int | None) -> float:
     return (max_dimension / longest) ** 2
 
 
+def _height_factor(src: Path, height: int, upscale: bool) -> float:
+    """How rescaling changes the size: bitrate tracks pixel count, so area.
+
+    Upscaling is deliberately treated as free rather than expensive - adding
+    pixels adds no detail, and the encoder spends little on them - so the guess
+    stays at 1.0 instead of claiming a file will balloon.
+    """
+    if not height:
+        return 1.0
+    from .common import probe_dimensions
+
+    size = probe_dimensions(str(src))
+    if not size or not size[1]:
+        return 1.0
+    if height >= size[1]:
+        return 1.0
+    return (height / size[1]) ** 2
+
+
 def estimate_output_bytes(
     src: Path,
     target: str | None = None,
     preset: str = "lossless",
     video_codec: str = "h264",
     max_dimension: int | None = None,
+    height: int = 0,
+    upscale: bool = False,
 ) -> int | None:
     """Rough output size in bytes, or None when there is no honest guess."""
     src = Path(src)
@@ -83,7 +104,8 @@ def estimate_output_bytes(
         return int(original * ratio * shrink)
 
     if kind == "video":
-        return int(original * VIDEO_RATIOS.get(video_codec, VIDEO_RATIOS["h264"]).get(preset, 0.6))
+        ratio = VIDEO_RATIOS.get(video_codec, VIDEO_RATIOS["h264"]).get(preset, 0.6)
+        return int(original * ratio * _height_factor(src, height, upscale))
 
     if kind == "audio":
         if target == "mp4":

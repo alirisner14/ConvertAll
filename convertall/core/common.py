@@ -245,6 +245,29 @@ def probe_duration(path: str) -> float | None:
     return total or None
 
 
+_DIMENSIONS = re.compile(r"Video:.*?,\s*(\d{2,5})x(\d{2,5})")
+
+
+@lru_cache(maxsize=128)
+def probe_dimensions(path: str) -> tuple[int, int] | None:
+    """Pixel size of a video's first video stream, or None if unreadable."""
+    try:
+        proc = subprocess.run(
+            [ffmpeg_exe(), "-hide_banner", "-i", str(path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=_NO_WINDOW,
+        )
+    except Exception:  # pragma: no cover - depends on environment
+        return None
+    match = _DIMENSIONS.search(proc.stderr or "")
+    if not match:
+        return None
+    return int(match.group(1)), int(match.group(2))
+
+
 def run_ffmpeg(args: list[str], log=None, on_progress=None, duration: float | None = None) -> None:
     """Run FFmpeg, raising on a non-zero exit.
 

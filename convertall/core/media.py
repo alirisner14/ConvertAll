@@ -8,6 +8,7 @@ from .common import (
     TaskResult,
     available_encoders,
     ensure_dir,
+    probe_dimensions,
     probe_duration,
     run_ffmpeg,
     size_of,
@@ -162,11 +163,101 @@ def audio_to_mp4(
     )
 
 
+# Heights offered for rescaling. Width follows the source's aspect ratio.
+RESOLUTIONS_OUT = {
+    0: "Keep original",
+    2160: "2160p (4K)",
+    1440: "1440p",
+    1080: "1080p",
+    720: "720p",
+    480: "480p",
+    360: "360p",
+}
+MIN_HEIGHT, MAX_HEIGHT = 144, 4320
+
+
+def scale_filter(height: int, upscale: bool) -> str:
+    """An FFmpeg scale filter for a target height, preserving aspect ratio.
+
+    -2 keeps the aspect ratio and rounds the width to an even number, which
+    yuv420p requires. Without `upscale` the height is capped at the source's
+    own, expressed in-filter so no probe is needed and a mixed batch does the
+    right thing per file rather than per batch.
+    """
+    target = f"min(ih,{height})" if not upscale else str(height)
+    return f"scale=-2:'{target}':flags=lanczos"
+
+
+# Rescaling guidance. These are rules of thumb, not physics, but they are the
+# ones that hold up: enlarging invents no detail, and shrinking too far costs
+# legibility long before it costs "quality" in any abstract sense.
+#
+# Upscaling: beyond twice the original height the softness is obvious on any
+# screen big enough to notice, because every added pixel is interpolated.
+# Downscaling: below a third of the original height, small text and fine lines
+# stop being readable - which matters most for the recordings and screencasts
+# people most often want to shrink.
+UPSCALE_LIMIT = 2.0
+DOWNSCALE_LIMIT = 1 / 3
+# ...and a floor that does not scale with the source, because legibility is
+# absolute: 360p is hard to read whether it came from 720p or from 4K.
+DOWNSCALE_FLOOR = 432
+
+
+def _nearest_rung(height: float, at_or_below: bool) -> int:
+    """Snap a limit to a height the menu actually offers."""
+    rungs = sorted(h for h in RESOLUTIONS_OUT if h)
+    if at_or_below:
+        candidates = [h for h in rungs if h <= height]
+        return candidates[-1] if candidates else rungs[0]
+    candidates = [h for h in rungs if h >= height]
+    return candidates[0] if candidates else rungs[-1]
+
+
+def rescale_advice(source_height: int, target_height: int = 0, upscale: bool = False) -> str:
+    """What is realistic for this source, and whether the current pick exceeds it.
+
+    Returns "" when there is nothing useful to say, so the note only appears
+    where it earns its space.
+    """
+    if not source_height:
+        return ""
+
+    highest = _nearest_rung(source_height * UPSCALE_LIMIT, at_or_below=True)
+    lowest = _nearest_rung(max(DOWNSCALE_FLOOR, source_height * DOWNSCALE_LIMIT), at_or_below=False)
+
+    if target_height and target_height > source_height and upscale:
+        if target_height > highest:
+            return (
+                f"Note: it is not recommended to upscale above {highest}p for videos "
+                f"with a starting resolution of {source_height}p. Enlarging adds "
+                "pixels, never detail."
+            )
+        return (
+            f"{source_height}p to {target_height}p will look softer than the "
+            "original. Nothing is gained in detail, and the file gets bigger."
+        )
+
+    if target_height and target_height < source_height and target_height < lowest:
+        return (
+            f"Note: it is not recommended to downscale below {lowest}p for videos "
+            f"with a starting resolution of {source_height}p. Small text and fine "
+            "lines stop being readable first."
+        )
+
+    return (
+        f"Source is {source_height}p. For this video, {lowest}p is about as low as "
+        f"is sensible, and upscaling past {highest}p is not recommended."
+    )
+
+
 def compress_video(
     src: Path,
     out_dir: Path,
     preset: str = "balanced",
     codec: str = "h264",
+    height: int = 0,
+    upscale: bool = False,
     log=None,
     progress=None,
 ) -> TaskResult:
@@ -177,7 +268,26 @@ def compress_video(
 
     ensure_dir(out_dir)
     dst = unique_path(Path(out_dir) / f"{src.stem}.mp4")
-    base = ["-i", str(src), *video_args, "-pix_fmt", "yuv420p", "-movflags", "+faststart"]
+    scaling: list[str] = []
+    if height:
+        height = max(MIN_HEIGHT, min(MAX_HEIGHT, int(height)))
+        scaling = ["-vf", scale_filter(height, upscale)]
+        size = probe_dimensions(str(src))
+        if size:
+            label += f" / {size[1]}p -> {height if upscale else min(size[1], height)}p"
+        else:
+            label += f" / {height}p"
+
+    base = [
+        "-i",
+        str(src),
+        *scaling,
+        *video_args,
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+    ]
 
     # Copying the audio stream is both faster and better than re-encoding it:
     # the source is usually already lossy, and a second pass through AAC only

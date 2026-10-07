@@ -123,6 +123,8 @@ def smart_compress(
     preset: str = "lossless",
     images_to_webp: bool = False,
     video_codec: str = "h264",
+    height: int = 0,
+    upscale: bool = False,
     log=None,
     progress=None,
 ) -> TaskResult:
@@ -158,8 +160,21 @@ def smart_compress(
 
     if kind == "video":
         result = compress_video(
-            src, out_dir, preset=preset, codec=video_codec, log=log, progress=progress
+            src,
+            out_dir,
+            preset=preset,
+            codec=video_codec,
+            height=height,
+            upscale=upscale,
+            log=log,
+            progress=progress,
         )
+        # A requested resolution is not a size optimisation, so the
+        # "it got bigger, keep the original" rule below must not undo it -
+        # that would silently hand back a file at the resolution the user
+        # just asked to change.
+        if height:
+            return result
         # Video is the likeliest place for a re-encode to backfire: anything
         # already efficiently encoded, or in a newer codec than H.264, can come
         # out larger *and* slightly worse. Never hand that back as a success.
